@@ -90,9 +90,11 @@ consulta (até seis chamadas) e subiu para 10 s para acomodar câmeras lentas
 4. Principal = perfil de maior resolução. Secundário = o de menor resolução,
    se for diferente. Empate na resolução: vale a ordem do dispositivo.
 5. URLs devolvidas com credenciais embutidas passam por `RtspUrl::parse`. As
-   credenciais são descartadas, porque as do cadastro valem. Host
-   `0.0.0.0`/`localhost` na URL é trocado pelo host da câmera (firmwares com
-   NAT errado).
+   credenciais são descartadas, porque as do cadastro valem. Como essas
+   credenciais vão junto ao abrir o stream, da URL valem só esquema, porta e
+   caminho/consulta; o host é sempre o da câmera (ADR 0005), o que também
+   resolve firmwares que anunciam `0.0.0.0`, loopback ou o IP interno atrás
+   de NAT.
 
 ### D4. WS-Discovery
 

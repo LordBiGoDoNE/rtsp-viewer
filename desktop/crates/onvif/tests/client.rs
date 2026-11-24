@@ -202,6 +202,40 @@ fn prazo_total_vale_para_a_consulta_inteira() {
     assert!(elapsed < Duration::from_millis(2500), "{elapsed:?}");
 }
 
+/// URL RTSP de `GetStreamUri` com outro host (câmera maliciosa ou firmware
+/// atrás de NAT): a senha do cadastro vai junto ao abrir o stream, então o
+/// host é sempre o da câmera; esquema, porta e caminho/consulta são mantidos
+/// (ADR 0005). 203.0.113.7 é TEST-NET-3 e `.example` é reservado.
+#[test]
+fn url_rtsp_em_outro_host_usa_o_host_da_camera() {
+    for (uri, esperada) in [
+        (
+            "rtsp://203.0.113.7:554/live/ch0?subtype=0",
+            "rtsp://127.0.0.1:554/live/ch0?subtype=0",
+        ),
+        (
+            "rtsps://camera.example:8555/stream",
+            "rtsps://127.0.0.1:8555/stream",
+        ),
+        ("rtsp://u:p@[2001:db8::9]/s", "rtsp://127.0.0.1/s"),
+    ] {
+        let cfg = SimConfig {
+            profiles: vec![SimProfile {
+                token: "main".into(),
+                width: 1280,
+                height: 720,
+                uri: uri.into(),
+            }],
+            ..Default::default()
+        };
+        let sim = Simulator::start(cfg.clone());
+        let set = client()
+            .fetch_streams(&device(&sim), Some(&creds(&cfg)))
+            .unwrap();
+        assert_eq!(set.main.url.to_string(), esperada, "{uri}");
+    }
+}
+
 #[test]
 fn credenciais_embutidas_na_url_devolvida_sao_descartadas() {
     let cfg = SimConfig {

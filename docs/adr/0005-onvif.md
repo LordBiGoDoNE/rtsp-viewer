@@ -44,6 +44,10 @@ Requisitos permanentes: leve, simples, sem rede no boot.
     das credenciais para ataque de dicionário offline. A regra também cobre
     firmwares que anunciam `0.0.0.0`, loopback ou o IP interno atrás de NAT.
     `XAddr` que não é `http` ou ilegível: vale o serviço de dispositivo;
+  - a URL RTSP de `GetStreamUri` segue a mesma regra: valem o esquema, a
+    porta e o caminho/consulta devolvidos, e o host é sempre o da câmera.
+    A senha do cadastro vai embutida ao abrir o stream; seguir o host
+    anunciado a entregaria a qualquer host (inclusive fora da LAN);
   - cada consulta tem prazo total (10 s), repartido entre as chamadas dela.
 
 ## Consequências
