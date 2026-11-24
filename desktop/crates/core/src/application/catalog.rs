@@ -47,6 +47,11 @@ pub enum CatalogError {
     Storage(String),
     #[error("{0}")]
     Credentials(String),
+    /// A câmera nova foi salva (com este `id`), mas a senha não chegou ao
+    /// cofre. A UI deve tratar a câmera como criada e oferecer reaplicar a
+    /// senha com `edit`, sem chamar `add` de novo.
+    #[error("Câmera salva, mas a senha não pôde ser guardada no cofre: {reason}")]
+    AddedWithoutPassword { id: CameraId, reason: String },
     #[error("Informe a senha da câmera.")]
     NeedsPassword,
 }
@@ -100,10 +105,22 @@ impl CameraCatalog {
         let valid = validate(draft)?;
         let camera = Camera::new(valid.name, valid.url, valid.username);
         let id = camera.id().clone();
+        // Sem usuário, a senha não é usada: não vai para o cofre.
+        let password = if camera.requires_credentials() {
+            valid.password
+        } else {
+            PasswordInput::Unchanged
+        };
         let mut next = self.cameras.clone();
         next.push(camera);
         self.persist(next)?;
-        self.apply_password(&id, valid.password)?;
+        self.apply_password(&id, password).map_err(|e| match e {
+            CatalogError::Credentials(reason) => CatalogError::AddedWithoutPassword {
+                id: id.clone(),
+                reason,
+            },
+            other => other,
+        })?;
         Ok(id)
     }
 
@@ -115,8 +132,19 @@ impl CameraCatalog {
         camera.rename(valid.name);
         camera.change_url(valid.url);
         camera.change_username(valid.username);
+        // Câmera que passa a não ter usuário não deve manter senha no cofre.
+        let password = if camera.requires_credentials() {
+            valid.password
+        } else {
+            PasswordInput::Clear
+        };
         self.persist(next)?;
-        self.apply_password(id, valid.password)
+        self.apply_password(id, password).map_err(|e| match e {
+            CatalogError::Credentials(reason) => CatalogError::Credentials(format!(
+                "Câmera salva, mas a senha não pôde ser guardada no cofre: {reason}"
+            )),
+            other => other,
+        })
     }
 
     /// Remove a câmera da lista e a senha dela do cofre. A lista é gravada
@@ -143,6 +171,14 @@ impl CameraCatalog {
         typed_password: Option<Password>,
     ) -> Result<StreamRequest, CatalogError> {
         let camera = self.get(id).ok_or(CatalogError::NotFound)?;
+        if !camera.requires_credentials() {
+            // Sem usuário, conecta sem credenciais; senha antiga é ignorada.
+            return Ok(StreamRequest {
+                camera_id: id.clone(),
+                url: camera.url().with_credentials(None, None),
+                display_url: camera.url().to_string(),
+            });
+        }
         let password = match typed_password {
             Some(p) => {
                 self.credentials
@@ -155,7 +191,7 @@ impl CameraCatalog {
                 .get(id)
                 .map_err(|e| CatalogError::Credentials(e.to_string()))?,
         };
-        if camera.requires_credentials() && password.is_none() {
+        if password.is_none() {
             return Err(CatalogError::NeedsPassword);
         }
         Ok(StreamRequest {
@@ -188,11 +224,7 @@ impl CameraCatalog {
             PasswordInput::Set(p) if !p.is_empty() => self.credentials.set(id, &p),
             PasswordInput::Set(_) | PasswordInput::Clear => self.credentials.delete(id),
         };
-        result.map_err(|e| {
-            CatalogError::Credentials(format!(
-                "Câmera salva, mas a senha não pôde ser guardada no cofre: {e}"
-            ))
-        })
+        result.map_err(|e| CatalogError::Credentials(e.to_string()))
     }
 }
 
@@ -356,6 +388,7 @@ mod tests {
         let (mut c, fake) = catalog();
         fake.0.borrow_mut().fail_save = true;
         let mut d = draft("A", "rtsp://h/s");
+        d.username = "admin".into();
         d.password = PasswordInput::Set(Password::new("x"));
         assert!(matches!(c.add(d), Err(CatalogError::Storage(_))));
         assert!(c.cameras().is_empty());
@@ -453,6 +486,78 @@ mod tests {
     fn camera_sem_usuario_conecta_sem_senha() {
         let (mut c, _) = catalog();
         let id = c.add(draft("A", "rtsp://h/s")).unwrap();
+        assert_eq!(
+            c.connection_request(&id, None).unwrap().url.expose(),
+            "rtsp://h/s"
+        );
+    }
+
+    #[test]
+    fn falha_do_cofre_ao_adicionar_devolve_o_id_da_camera_salva() {
+        let (mut c, fake) = catalog();
+        fake.0.borrow_mut().fail_secrets = true;
+        let mut d = draft("A", "rtsp://h/s");
+        d.username = "admin".into();
+        d.password = PasswordInput::Set(Password::new("p1"));
+        let err = c.add(d).unwrap_err();
+        let CatalogError::AddedWithoutPassword { id, .. } = err else {
+            panic!("{err:?}")
+        };
+        assert_eq!(c.cameras().len(), 1);
+        assert_eq!(fake.0.borrow().saved.as_ref().unwrap().len(), 1);
+        assert!(c.get(&id).is_some());
+
+        // Com o id, a UI reaplica a senha via `edit`, sem duplicar a câmera.
+        fake.0.borrow_mut().fail_secrets = false;
+        let mut e = draft("A", "rtsp://h/s");
+        e.username = "admin".into();
+        e.password = PasswordInput::Set(Password::new("p1"));
+        c.edit(&id, e).unwrap();
+        assert_eq!(c.cameras().len(), 1);
+        assert_eq!(fake.0.borrow().secrets.get(&id).unwrap().expose(), "p1");
+    }
+
+    #[test]
+    fn editar_removendo_usuario_apaga_senha_do_cofre() {
+        let (mut c, fake) = catalog();
+        let id = c.add(draft("A", "rtsp://u:p@h/s")).unwrap();
+        assert!(fake.0.borrow().secrets.contains_key(&id));
+
+        c.edit(&id, draft("A", "rtsp://h/s")).unwrap();
+        assert_eq!(c.get(&id).unwrap().username(), None);
+        assert!(!fake.0.borrow().secrets.contains_key(&id));
+        assert_eq!(
+            c.connection_request(&id, None).unwrap().url.expose(),
+            "rtsp://h/s"
+        );
+    }
+
+    #[test]
+    fn camera_sem_usuario_ignora_senha_que_restou_no_cofre() {
+        let fake = Fake::default();
+        let cam = Camera::new(
+            CameraName::parse("X").unwrap(),
+            RtspUrl::parse("rtsp://h/s").unwrap().url,
+            None,
+        );
+        let id = cam.id().clone();
+        {
+            let mut s = fake.0.borrow_mut();
+            s.initial = vec![cam];
+            s.secrets.insert(id.clone(), Password::new("antiga"));
+        }
+        let (c, _) = CameraCatalog::load(Box::new(fake.clone()), Box::new(fake)).unwrap();
+        let req = c.connection_request(&id, None).unwrap();
+        assert_eq!(req.url.expose(), "rtsp://h/s");
+    }
+
+    #[test]
+    fn adicionar_sem_usuario_nao_guarda_senha() {
+        let (mut c, fake) = catalog();
+        let mut d = draft("A", "rtsp://h/s");
+        d.password = PasswordInput::Set(Password::new("x"));
+        let id = c.add(d).unwrap();
+        assert!(fake.0.borrow().secrets.is_empty());
         assert_eq!(
             c.connection_request(&id, None).unwrap().url.expose(),
             "rtsp://h/s"

@@ -53,13 +53,24 @@ export function changeFromArchiveDir(dir) {
   return m ? m[1] : null;
 }
 
-/** Changes arquivadas sem linha de tabela no registro. */
+/**
+ * Changes arquivadas sem linha de tabela no registro. Uma linha conta quando
+ * alguma célula é exatamente o nome da change, com ou sem crases (`app` não é
+ * registrada por uma linha de `app-android`).
+ */
 export function archivedWithoutRegistry(archiveDirs, registryText) {
-  const rows = registryText.split('\n').filter((l) => l.trim().startsWith('|'));
+  const cells = new Set(
+    registryText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith('|'))
+      .flatMap((l) => l.split('|'))
+      .map((c) => c.trim().replace(/^`(.*)`$/, '$1').trim()),
+  );
   return archiveDirs
     .map(changeFromArchiveDir)
     .filter(Boolean)
-    .filter((change) => !rows.some((row) => row.includes(change)));
+    .filter((change) => !cells.has(change));
 }
 
 function main(argv) {

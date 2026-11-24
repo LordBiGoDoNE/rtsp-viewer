@@ -100,15 +100,16 @@ impl RtspUrl {
     }
 
     /// Monta a URL de conexão com as credenciais codificadas. O resultado só
-    /// deve existir em memória, no momento de abrir o stream.
+    /// deve existir em memória, no momento de abrir o stream. Senha sem
+    /// usuário é ignorada.
     pub fn with_credentials(
         &self,
         username: Option<&str>,
         password: Option<&Password>,
     ) -> ConnectionUrl {
         let mut s = String::from(self.scheme());
-        if username.is_some() || password.is_some() {
-            s.push_str(&percent_encode(username.unwrap_or_default()));
+        if let Some(username) = username {
+            s.push_str(&percent_encode(username));
             if let Some(p) = password {
                 s.push(':');
                 s.push_str(&percent_encode(p.expose()));
@@ -329,5 +330,15 @@ mod tests {
     fn url_de_conexao_sem_credenciais() {
         let p = ok("rtsp://h/s");
         assert_eq!(p.url.with_credentials(None, None).expose(), "rtsp://h/s");
+    }
+
+    #[test]
+    fn senha_sem_usuario_e_ignorada() {
+        let p = ok("rtsp://h/s");
+        let senha = Password::new("antiga");
+        assert_eq!(
+            p.url.with_credentials(None, Some(&senha)).expose(),
+            "rtsp://h/s"
+        );
     }
 }
