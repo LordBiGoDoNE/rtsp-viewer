@@ -72,8 +72,9 @@ fn json_malformado_falha() {
     );
 }
 
-/// Cores só pelo `Theme`: nenhum `.slint` do app usa `#hex`, `rgb()`, `rgba()`
-/// ou `hsv()` (a palavra `transparent` é permitida).
+/// Cores só pelo `Theme`: nenhum `.slint` do app usa `#hex`, `rgb()`, `rgba()`,
+/// `hsv()`, cores nomeadas (`red`, `white`…) ou o namespace `Colors.` (a
+/// palavra `transparent` é permitida).
 #[test]
 fn ui_nao_usa_cor_literal() {
     let ui = Path::new(env!("CARGO_MANIFEST_DIR")).join("ui");
@@ -85,8 +86,7 @@ fn ui_nao_usa_cor_literal() {
         }
         let text = std::fs::read_to_string(&path).unwrap();
         for (n, line) in text.lines().enumerate() {
-            let code = line.split("//").next().unwrap_or_default();
-            if has_hex_color(code) || ["rgb(", "rgba(", "hsv("].iter().any(|f| code.contains(f)) {
+            if has_literal_color(line) {
                 violations.push(format!("{}:{}: {}", path.display(), n + 1, line.trim()));
             }
         }
@@ -96,6 +96,45 @@ fn ui_nao_usa_cor_literal() {
         "cores literais na UI:\n{}",
         violations.join("\n")
     );
+}
+
+/// Linha de `.slint` com cor literal, ignorando textos entre aspas e comentários.
+fn has_literal_color(line: &str) -> bool {
+    let code = code_only(line);
+    has_hex_color(&code)
+        || ["rgb(", "rgba(", "hsv(", "Colors."]
+            .iter()
+            .any(|f| code.contains(f))
+        || has_named_color(&code)
+}
+
+/// Remove o conteúdo de strings e o comentário de linha.
+fn code_only(line: &str) -> String {
+    let mut out = String::new();
+    let mut in_string = false;
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if in_string {
+            match c {
+                '\\' => {
+                    chars.next();
+                }
+                '"' => {
+                    in_string = false;
+                    out.push('"');
+                }
+                _ => {}
+            }
+        } else if c == '"' {
+            in_string = true;
+            out.push('"');
+        } else if c == '/' && chars.peek() == Some(&'/') {
+            break;
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 fn has_hex_color(code: &str) -> bool {
@@ -108,9 +147,207 @@ fn has_hex_color(code: &str) -> bool {
     })
 }
 
+/// Identificador solto (não precedido de `.` nem parte de um nome com `-`)
+/// igual a uma cor nomeada do CSS, que o Slint aceita como cor.
+fn has_named_color(code: &str) -> bool {
+    let is_ident = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == '-';
+    let mut start = None;
+    for (i, c) in code
+        .char_indices()
+        .chain(std::iter::once((code.len(), ' ')))
+    {
+        match (start, is_ident(c)) {
+            (None, true) => start = Some(i),
+            (Some(s), false) => {
+                start = None;
+                let word = &code[s..i];
+                let qualified = code[..s].trim_end().ends_with('.');
+                if !qualified && NAMED_COLORS.contains(&word.to_ascii_lowercase().as_str()) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Cores nomeadas do CSS (sem `transparent`, que é permitida).
+const NAMED_COLORS: &[&str] = &[
+    "aliceblue",
+    "antiquewhite",
+    "aqua",
+    "aquamarine",
+    "azure",
+    "beige",
+    "bisque",
+    "black",
+    "blanchedalmond",
+    "blue",
+    "blueviolet",
+    "brown",
+    "burlywood",
+    "cadetblue",
+    "chartreuse",
+    "chocolate",
+    "coral",
+    "cornflowerblue",
+    "cornsilk",
+    "crimson",
+    "cyan",
+    "darkblue",
+    "darkcyan",
+    "darkgoldenrod",
+    "darkgray",
+    "darkgreen",
+    "darkgrey",
+    "darkkhaki",
+    "darkmagenta",
+    "darkolivegreen",
+    "darkorange",
+    "darkorchid",
+    "darkred",
+    "darksalmon",
+    "darkseagreen",
+    "darkslateblue",
+    "darkslategray",
+    "darkslategrey",
+    "darkturquoise",
+    "darkviolet",
+    "deeppink",
+    "deepskyblue",
+    "dimgray",
+    "dimgrey",
+    "dodgerblue",
+    "firebrick",
+    "floralwhite",
+    "forestgreen",
+    "fuchsia",
+    "gainsboro",
+    "ghostwhite",
+    "gold",
+    "goldenrod",
+    "gray",
+    "green",
+    "greenyellow",
+    "grey",
+    "honeydew",
+    "hotpink",
+    "indianred",
+    "indigo",
+    "ivory",
+    "khaki",
+    "lavender",
+    "lavenderblush",
+    "lawngreen",
+    "lemonchiffon",
+    "lightblue",
+    "lightcoral",
+    "lightcyan",
+    "lightgoldenrodyellow",
+    "lightgray",
+    "lightgreen",
+    "lightgrey",
+    "lightpink",
+    "lightsalmon",
+    "lightseagreen",
+    "lightskyblue",
+    "lightslategray",
+    "lightslategrey",
+    "lightsteelblue",
+    "lightyellow",
+    "lime",
+    "limegreen",
+    "linen",
+    "magenta",
+    "maroon",
+    "mediumaquamarine",
+    "mediumblue",
+    "mediumorchid",
+    "mediumpurple",
+    "mediumseagreen",
+    "mediumslateblue",
+    "mediumspringgreen",
+    "mediumturquoise",
+    "mediumvioletred",
+    "midnightblue",
+    "mintcream",
+    "mistyrose",
+    "moccasin",
+    "navajowhite",
+    "navy",
+    "oldlace",
+    "olive",
+    "olivedrab",
+    "orange",
+    "orangered",
+    "orchid",
+    "palegoldenrod",
+    "palegreen",
+    "paleturquoise",
+    "palevioletred",
+    "papayawhip",
+    "peachpuff",
+    "peru",
+    "pink",
+    "plum",
+    "powderblue",
+    "purple",
+    "rebeccapurple",
+    "red",
+    "rosybrown",
+    "royalblue",
+    "saddlebrown",
+    "salmon",
+    "sandybrown",
+    "seagreen",
+    "seashell",
+    "sienna",
+    "silver",
+    "skyblue",
+    "slateblue",
+    "slategray",
+    "slategrey",
+    "snow",
+    "springgreen",
+    "steelblue",
+    "tan",
+    "teal",
+    "thistle",
+    "tomato",
+    "turquoise",
+    "violet",
+    "wheat",
+    "white",
+    "whitesmoke",
+    "yellow",
+    "yellowgreen",
+];
+
 #[test]
 fn detector_de_cor_literal() {
-    assert!(has_hex_color("background: #ff0000;"));
-    assert!(has_hex_color("color: #fff;"));
-    assert!(!has_hex_color("background: Theme.color-surface;"));
+    for bad in [
+        "background: #ff0000;",
+        "color: #fff;",
+        "color: rgb(255, 0, 0);",
+        "background: red;",
+        "border-color: White;",
+        "fill: black; // contorno",
+        "stroke: Colors.blue;",
+        "in property <color> destaque: orange;",
+        "background: cond ? red : Theme.color-surface;",
+    ] {
+        assert!(has_literal_color(bad), "deveria detectar: {bad}");
+    }
+    for ok in [
+        "background: Theme.color-surface;",
+        "background: transparent;",
+        "color: Theme.color-text; // red é só comentário",
+        "text: \"Fundo red e #fff no texto\";",
+        "border-color: Theme.color-red;",
+        "in property <bool> red-alert;",
+        "url: \"rtsp://h/s\"; background: Theme.color-bg;",
+    ] {
+        assert!(!has_literal_color(ok), "não deveria detectar: {ok}");
+    }
 }

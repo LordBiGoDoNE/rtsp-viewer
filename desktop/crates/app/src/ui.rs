@@ -19,8 +19,22 @@ use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecM
 use crate::presentation::{self, View};
 use crate::{AppWindow, CameraRow, Page, ViewState};
 
+/// Tarefa executada na thread da UI.
+type UiTask = Box<dyn FnOnce(&AppWindow) + Send>;
+
+/// Agenda uma tarefa na thread da UI. No app, `upgrade_in_event_loop`; nos
+/// testes, uma fila drenada pelo próprio teste.
+type Dispatch = Arc<dyn Fn(UiTask) + Send + Sync>;
+
+fn event_loop_dispatch(window: slint::Weak<AppWindow>) -> Dispatch {
+    Arc::new(move |task: UiTask| {
+        let _ = window.upgrade_in_event_loop(move |w| task(&w));
+    })
+}
+
 pub struct Controller {
     window: slint::Weak<AppWindow>,
+    dispatch: Dispatch,
     catalog: RefCell<CameraCatalog>,
     player: Box<dyn StreamPlayer>,
     playback: RefCell<Option<Box<dyn PlaybackHandle>>>,
@@ -37,8 +51,20 @@ impl Controller {
         player: Box<dyn StreamPlayer>,
         banner: Option<String>,
     ) -> Rc<Self> {
+        let dispatch = event_loop_dispatch(window.as_weak());
+        Self::attach_with(window, catalog, player, banner, dispatch)
+    }
+
+    fn attach_with(
+        window: &AppWindow,
+        catalog: CameraCatalog,
+        player: Box<dyn StreamPlayer>,
+        banner: Option<String>,
+        dispatch: Dispatch,
+    ) -> Rc<Self> {
         let c = Rc::new(Self {
             window: window.as_weak(),
+            dispatch,
             catalog: RefCell::new(catalog),
             player,
             playback: RefCell::new(None),
@@ -296,7 +322,7 @@ impl Controller {
     fn start_playback(&self, request: StreamRequest) {
         let session = self.session.fetch_add(1, Ordering::SeqCst) + 1;
         let sink = make_sink(
-            self.window.clone(),
+            self.dispatch.clone(),
             self.session.clone(),
             session,
             request.display_url.clone(),
@@ -406,7 +432,7 @@ fn frame_image(frame: &VideoFrame) -> Image {
 /// Sink chamado pela thread do player: guarda o quadro mais recente e agenda
 /// no máximo uma atualização pendente da UI.
 fn make_sink(
-    window: slint::Weak<AppWindow>,
+    dispatch: Dispatch,
     current: Arc<AtomicU64>,
     session: u64,
     display_url: String,
@@ -425,32 +451,32 @@ fn make_sink(
                 *slot.latest.lock().unwrap_or_else(|e| e.into_inner()) = Some(frame);
                 if !slot.pending.swap(true, Ordering::AcqRel) {
                     let slot = slot.clone();
-                    let _ = window.upgrade_in_event_loop(move |w| {
+                    dispatch(Box::new(move |w| {
                         slot.pending.store(false, Ordering::Release);
                         let frame = slot.latest.lock().unwrap_or_else(|e| e.into_inner()).take();
                         if let (true, Some(frame)) = (alive(), frame) {
                             w.set_video_frame(frame_image(&frame));
                         }
-                    });
+                    }));
                 }
             }
             PlayerEvent::State(state) => {
                 if let Some((view, message)) = presentation::view_for(&state) {
-                    let _ = window.upgrade_in_event_loop(move |w| {
+                    dispatch(Box::new(move |w| {
                         if alive() {
                             w.set_view_state(to_slint(view));
                             w.set_view_message(message.into());
                         }
-                    });
+                    }));
                 }
             }
             PlayerEvent::Info(info) => {
                 let text = presentation::info_text(&info, &display_url);
-                let _ = window.upgrade_in_event_loop(move |w| {
+                dispatch(Box::new(move |w| {
                     if alive() {
                         w.set_info_text(text.into());
                     }
-                });
+                }));
             }
         }
     })
@@ -460,17 +486,31 @@ fn make_sink(
 mod tests {
     use std::sync::Mutex as StdMutex;
 
-    use rtsp_viewer_core::application::ports::{PlayerSink, StreamRequest};
+    use std::time::Duration;
+
+    use rtsp_viewer_core::application::ports::{
+        CredentialError, CredentialStore, DecodeMode, PlayerSink, PlayerState, StreamInfo,
+        StreamRequest,
+    };
     use slint::Model;
 
     use super::*;
     use crate::infrastructure::credentials::MemoryCredentialStore;
     use crate::infrastructure::memory_repository::MemoryCameraRepository;
 
+    /// Guarda os sinks recebidos para o teste disparar eventos como o player.
     #[derive(Clone, Default)]
     struct FakePlayer {
         requests: Arc<StdMutex<Vec<String>>>,
+        sinks: Arc<StdMutex<Vec<PlayerSink>>>,
         stops: Arc<AtomicU64>,
+    }
+
+    impl FakePlayer {
+        /// Envia um evento pelo sink da `n`-ésima reprodução iniciada.
+        fn emit(&self, n: usize, event: PlayerEvent) {
+            (self.sinks.lock().unwrap()[n])(event);
+        }
     }
 
     struct FakeHandle(Arc<AtomicU64>);
@@ -482,26 +522,117 @@ mod tests {
     }
 
     impl StreamPlayer for FakePlayer {
-        fn start(&self, request: StreamRequest, _sink: PlayerSink) -> Box<dyn PlaybackHandle> {
+        fn start(&self, request: StreamRequest, sink: PlayerSink) -> Box<dyn PlaybackHandle> {
             self.requests
                 .lock()
                 .unwrap()
                 .push(request.url.expose().to_string());
+            self.sinks.lock().unwrap().push(sink);
             Box::new(FakeHandle(self.stops.clone()))
         }
     }
 
-    fn setup() -> (AppWindow, Rc<Controller>, FakePlayer) {
+    /// Fila no lugar do event loop: o teste decide quando a UI processa.
+    #[derive(Clone, Default)]
+    struct UiQueue(Arc<StdMutex<Vec<UiTask>>>);
+
+    impl UiQueue {
+        fn dispatch(&self) -> Dispatch {
+            let queue = self.0.clone();
+            Arc::new(move |task| queue.lock().unwrap().push(task))
+        }
+
+        fn len(&self) -> usize {
+            self.0.lock().unwrap().len()
+        }
+
+        fn drain(&self, w: &AppWindow) {
+            let tasks = std::mem::take(&mut *self.0.lock().unwrap());
+            for task in tasks {
+                task(w);
+            }
+        }
+    }
+
+    /// Cofre de teste: persistente e, se `fail`, recusa gravar senhas.
+    struct FakeVault {
+        fail: bool,
+    }
+
+    impl CredentialStore for FakeVault {
+        fn get(&self, _: &CameraId) -> Result<Option<Password>, CredentialError> {
+            Ok(None)
+        }
+        fn set(&self, _: &CameraId, _: &Password) -> Result<(), CredentialError> {
+            if self.fail {
+                Err(CredentialError("cofre bloqueado".into()))
+            } else {
+                Ok(())
+            }
+        }
+        fn delete(&self, _: &CameraId) -> Result<(), CredentialError> {
+            Ok(())
+        }
+        fn is_persistent(&self) -> bool {
+            true
+        }
+    }
+
+    struct Harness {
+        w: AppWindow,
+        _c: Rc<Controller>,
+        player: FakePlayer,
+        ui: UiQueue,
+    }
+
+    fn harness(store: Box<dyn CredentialStore>) -> Harness {
         i_slint_backend_testing::init_no_event_loop();
-        let window = AppWindow::new().unwrap();
-        let (catalog, _) = CameraCatalog::load(
-            Box::new(MemoryCameraRepository::default()),
-            Box::new(MemoryCredentialStore::default()),
-        )
-        .unwrap();
+        let w = AppWindow::new().unwrap();
+        let (catalog, _) =
+            CameraCatalog::load(Box::new(MemoryCameraRepository::default()), store).unwrap();
         let player = FakePlayer::default();
-        let c = Controller::attach(&window, catalog, Box::new(player.clone()), None);
-        (window, c, player)
+        let ui = UiQueue::default();
+        let c = Controller::attach_with(&w, catalog, Box::new(player.clone()), None, ui.dispatch());
+        Harness {
+            w,
+            _c: c,
+            player,
+            ui,
+        }
+    }
+
+    fn setup() -> (AppWindow, Rc<Controller>, FakePlayer) {
+        let h = harness(Box::new(MemoryCredentialStore::default()));
+        (h.w, h._c, h.player)
+    }
+
+    /// Janela na visualização de uma câmera "A" em `rtsp://h/s`.
+    fn viewing() -> Harness {
+        let h = harness(Box::new(MemoryCredentialStore::default()));
+        add(&h.w, "A", "rtsp://h/s", "admin", "p1");
+        h.w.invoke_open_camera(h.w.get_cameras().row_data(0).unwrap().id);
+        assert_eq!(h.w.get_page(), Page::Viewer);
+        h
+    }
+
+    fn frame(side: u32) -> PlayerEvent {
+        PlayerEvent::Frame(VideoFrame {
+            width: side,
+            height: side,
+            rgba: vec![0; (side * side * 4) as usize],
+        })
+    }
+
+    fn frame_side(w: &AppWindow) -> u32 {
+        w.get_video_frame().size().width
+    }
+
+    fn press(w: &AppWindow, key: slint::platform::Key) {
+        let text: slint::SharedString = key.into();
+        w.window()
+            .dispatch_event(slint::platform::WindowEvent::KeyPressed { text: text.clone() });
+        w.window()
+            .dispatch_event(slint::platform::WindowEvent::KeyReleased { text });
     }
 
     fn add(w: &AppWindow, name: &str, url: &str, user: &str, password: &str) {
@@ -636,13 +767,213 @@ mod tests {
         assert_eq!(w.get_page(), Page::List);
     }
 
+    // ------------------------------------------------------------ sink do player
+
     #[test]
-    fn eventos_de_sessao_antiga_sao_ignorados() {
-        let current = Arc::new(AtomicU64::new(2));
-        let sink = make_sink(slint::Weak::default(), current, 1, "rtsp://h".into());
-        // Sem janela e de sessão antiga: não deve entrar em pânico nem agendar nada.
-        sink(PlayerEvent::State(
-            rtsp_viewer_core::application::ports::PlayerState::Playing,
-        ));
+    fn ultimo_quadro_vence_com_uma_unica_atualizacao_pendente() {
+        let h = viewing();
+        h.player.emit(0, frame(2));
+        h.player.emit(0, frame(4));
+        h.player.emit(0, frame(8));
+        assert_eq!(h.ui.len(), 1, "só uma atualização de quadro fica pendente");
+        h.ui.drain(&h.w);
+        assert_eq!(
+            frame_side(&h.w),
+            8,
+            "o quadro mais recente substitui os anteriores"
+        );
+
+        // Depois de processada, o próximo quadro agenda nova atualização.
+        h.player.emit(0, frame(6));
+        assert_eq!(h.ui.len(), 1);
+        h.ui.drain(&h.w);
+        assert_eq!(frame_side(&h.w), 6);
+    }
+
+    #[test]
+    fn estado_e_informacoes_chegam_a_tela() {
+        let h = viewing();
+        assert_eq!(h.w.get_view_state(), ViewState::Connecting);
+        h.player.emit(0, PlayerEvent::State(PlayerState::Playing));
+        h.player.emit(
+            0,
+            PlayerEvent::Info(StreamInfo {
+                codec: "h264".into(),
+                width: 640,
+                height: 480,
+                decode: DecodeMode::Software,
+            }),
+        );
+        h.ui.drain(&h.w);
+        assert_eq!(h.w.get_view_state(), ViewState::Playing);
+        assert_eq!(h.w.get_view_message(), "");
+        let info = h.w.get_info_text();
+        assert!(info.contains("Resolução: 640x480"), "{info}");
+        assert!(info.contains("Endereço: rtsp://h/s"), "{info}");
+        assert!(!info.contains("p1"), "a senha nunca aparece: {info}");
+
+        h.player.emit(
+            0,
+            PlayerEvent::State(PlayerState::Reconnecting {
+                attempt: 2,
+                delay: Duration::from_secs(2),
+            }),
+        );
+        h.ui.drain(&h.w);
+        assert_eq!(h.w.get_view_state(), ViewState::Reconnecting);
+        assert_eq!(h.w.get_view_message(), "Reconectando (tentativa 2)…");
+
+        // `Stopped` não muda a tela nem agenda nada.
+        h.player.emit(0, PlayerEvent::State(PlayerState::Stopped));
+        assert_eq!(h.ui.len(), 0);
+    }
+
+    #[test]
+    fn tentar_de_novo_reinicia_e_descarta_eventos_da_sessao_antiga() {
+        let h = viewing();
+        h.player.emit(0, frame(4));
+        h.player.emit(0, PlayerEvent::State(PlayerState::Playing));
+        assert_eq!(h.ui.len(), 2, "eventos agendados antes do retry");
+
+        h.w.invoke_retry();
+        assert_eq!(
+            h.player.stops.load(Ordering::SeqCst),
+            1,
+            "a reprodução anterior para"
+        );
+        assert_eq!(
+            h.player.requests.lock().unwrap().as_slice(),
+            ["rtsp://admin:p1@h/s", "rtsp://admin:p1@h/s"],
+            "uma nova reprodução começa"
+        );
+        assert_eq!(h.w.get_view_state(), ViewState::Connecting);
+
+        // Eventos atrasados da sessão antiga nem são agendados...
+        h.player.emit(0, frame(8));
+        h.player.emit(0, PlayerEvent::State(PlayerState::Playing));
+        assert_eq!(h.ui.len(), 2);
+        // ...e os já agendados não alteram a tela.
+        h.ui.drain(&h.w);
+        assert_eq!(frame_side(&h.w), 0, "quadro antigo descartado");
+        assert_eq!(h.w.get_view_state(), ViewState::Connecting);
+
+        // A sessão nova continua sendo entregue.
+        h.player.emit(1, frame(2));
+        h.ui.drain(&h.w);
+        assert_eq!(frame_side(&h.w), 2);
+    }
+
+    #[test]
+    fn voltar_para_lista_invalida_eventos_atrasados() {
+        let h = viewing();
+        h.player.emit(
+            0,
+            PlayerEvent::Info(StreamInfo {
+                codec: "h264".into(),
+                width: 1,
+                height: 1,
+                decode: DecodeMode::Software,
+            }),
+        );
+        h.player.emit(0, frame(4));
+        h.w.invoke_back_to_list();
+        assert_eq!(h.w.get_page(), Page::List);
+        assert_eq!(h.player.stops.load(Ordering::SeqCst), 1);
+        h.player.emit(0, frame(8));
+        assert_eq!(h.ui.len(), 2, "evento após parar não é agendado");
+        h.ui.drain(&h.w);
+        assert_eq!(h.w.get_info_text(), "");
+        assert_eq!(frame_side(&h.w), 0);
+    }
+
+    // ------------------------------------------------------------ tela cheia
+
+    #[test]
+    fn f11_e_botao_alternam_tela_cheia() {
+        let h = viewing();
+        assert!(!h.w.get_fullscreen());
+        press(&h.w, slint::platform::Key::F11);
+        assert!(h.w.get_fullscreen(), "F11 entra em tela cheia");
+        press(&h.w, slint::platform::Key::F11);
+        assert!(!h.w.get_fullscreen(), "F11 sai da tela cheia");
+        h.w.invoke_toggle_fullscreen();
+        assert!(h.w.get_fullscreen());
+        h.w.invoke_toggle_fullscreen();
+        assert!(!h.w.get_fullscreen());
+    }
+
+    #[test]
+    fn f11_fora_da_visualizacao_nao_faz_nada() {
+        let (w, _c, _) = setup();
+        press(&w, slint::platform::Key::F11);
+        assert!(!w.get_fullscreen());
+    }
+
+    #[test]
+    fn esc_sai_da_tela_cheia_e_segundo_esc_volta_a_lista() {
+        let h = viewing();
+        press(&h.w, slint::platform::Key::F11);
+        assert!(h.w.get_fullscreen());
+        press(&h.w, slint::platform::Key::Escape);
+        assert!(!h.w.get_fullscreen(), "primeiro Esc sai da tela cheia");
+        assert_eq!(h.w.get_page(), Page::Viewer);
+        assert_eq!(h.player.stops.load(Ordering::SeqCst), 0);
+        press(&h.w, slint::platform::Key::Escape);
+        assert_eq!(h.w.get_page(), Page::List, "segundo Esc volta à lista");
+        assert_eq!(h.player.stops.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn voltar_em_tela_cheia_sai_da_tela_cheia() {
+        let h = viewing();
+        h.w.invoke_toggle_fullscreen();
+        h.w.invoke_back_to_list();
+        assert!(!h.w.get_fullscreen());
+        assert_eq!(h.w.get_page(), Page::List);
+    }
+
+    // ------------------------------------------------------------ cofre
+
+    #[test]
+    fn formulario_avisa_quando_nao_ha_cofre() {
+        let (w, _c, _) = setup();
+        w.invoke_add_camera();
+        assert!(
+            !w.get_vault_available(),
+            "senhas só em memória: mostra o aviso"
+        );
+    }
+
+    #[test]
+    fn formulario_sem_aviso_quando_ha_cofre() {
+        let h = harness(Box::new(FakeVault { fail: false }));
+        h.w.invoke_add_camera();
+        assert!(h.w.get_vault_available(), "com cofre: sem aviso");
+    }
+
+    #[test]
+    fn falha_no_cofre_ao_adicionar_nao_duplica_a_camera() {
+        let h = harness(Box::new(FakeVault { fail: true }));
+        add(&h.w, "A", "rtsp://h/s", "admin", "p1");
+        assert_eq!(h.w.get_page(), Page::Form, "formulário continua aberto");
+        assert_eq!(h.w.get_cameras().row_count(), 1, "a câmera foi salva");
+        assert!(
+            h.w.get_form_editing(),
+            "o formulário passa a editar a câmera"
+        );
+        assert_eq!(h.w.get_form_title(), "Editar câmera");
+        let error = h.w.get_form_error();
+        assert!(!error.is_empty());
+        assert!(
+            !error.contains("p1"),
+            "a senha não aparece no erro: {error}"
+        );
+
+        // Nova tentativa edita a mesma câmera em vez de criar outra.
+        h.w.set_form_password("p1".into());
+        h.w.invoke_save_form();
+        assert_eq!(h.w.get_cameras().row_count(), 1);
+        assert_eq!(h.w.get_page(), Page::List);
+        assert!(!h.w.get_banner().is_empty(), "falha da senha vira aviso");
     }
 }
