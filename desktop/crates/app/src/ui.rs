@@ -197,7 +197,8 @@ impl Controller {
                 PasswordInput::Set(Password::new(password))
             },
             // A consulta ONVIF (grupo 4 da descoberta-onvif) preenche o
-            // secundário; o formulário de URL completa o mantém.
+            // secundário; o formulário de URL completa o mantém enquanto a URL
+            // principal não muda (trocá-la descarta o secundário).
             substream: SubstreamInput::Unchanged,
         };
         let editing = self.editing.borrow().clone();

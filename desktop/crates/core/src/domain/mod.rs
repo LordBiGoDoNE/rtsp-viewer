@@ -7,7 +7,7 @@ pub mod rtsp_url;
 pub mod secret;
 pub mod vendor;
 
-pub use camera::{CAMERA_NAME_MAX, Camera, CameraId, CameraName, NameError};
+pub use camera::{CAMERA_NAME_MAX, Camera, CameraId, CameraName, NameError, SubstreamHostMismatch};
 pub use device_address::{AddressError, DeviceAddress, host_of_service_url};
 pub use reconnect::{ReconnectPolicy, STABLE_PLAYBACK};
 pub use rtsp_url::{ParsedUrl, RtspUrl, UrlError};

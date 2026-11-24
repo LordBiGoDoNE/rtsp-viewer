@@ -3,7 +3,7 @@
 use crate::application::ports::{
     CameraRepository, CredentialStore, RepositoryWarning, StreamRequest,
 };
-use crate::domain::{Camera, CameraId, CameraName, Password, RtspUrl};
+use crate::domain::{Camera, CameraId, CameraName, Password, RtspUrl, SubstreamHostMismatch};
 
 /// Dados do formulário de câmera, como digitados.
 #[derive(Debug, Clone, Default)]
@@ -18,10 +18,12 @@ pub struct CameraDraft {
 /// O que fazer com o stream secundário ao salvar.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum SubstreamInput {
-    /// Manter o atual (ou nenhum, numa câmera nova).
+    /// Manter o atual (ou nenhum, numa câmera nova). Se a URL principal
+    /// mudar, o secundário atual é descartado (ver `Camera::change_url`).
     #[default]
     Unchanged,
-    /// URL RTSP do secundário (credenciais embutidas são descartadas).
+    /// URL RTSP do secundário (credenciais embutidas são descartadas). Precisa
+    /// ter o mesmo host da URL principal.
     Set(String),
     Clear,
 }
@@ -118,7 +120,7 @@ impl CameraCatalog {
         let valid = validate(draft)?;
         let mut camera = Camera::new(valid.name, valid.url, valid.username);
         if let Some(sub) = valid.substream {
-            camera.change_substream(sub);
+            camera.change_substream(sub).map_err(substream_error)?;
         }
         let id = camera.id().clone();
         // Sem usuário, a senha não é usada: não vai para o cofre.
@@ -146,10 +148,12 @@ impl CameraCatalog {
         let mut next = self.cameras.clone();
         let camera = &mut next[idx];
         camera.rename(valid.name);
+        // `change_url` descarta o secundário quando a URL muda; um `Set`
+        // explícito é aplicado depois, já contra a URL nova.
         camera.change_url(valid.url);
         camera.change_username(valid.username);
         if let Some(sub) = valid.substream {
-            camera.change_substream(sub);
+            camera.change_substream(sub).map_err(substream_error)?;
         }
         // Câmera que passa a não ter usuário não deve manter senha no cofre.
         let password = if camera.requires_credentials() {
@@ -245,6 +249,13 @@ impl CameraCatalog {
         };
         result.map_err(|e| CatalogError::Credentials(e.to_string()))
     }
+}
+
+fn substream_error(e: SubstreamHostMismatch) -> CatalogError {
+    CatalogError::Invalid(vec![FieldError {
+        field: Field::Url,
+        message: format!("Stream secundário: {e}"),
+    }])
 }
 
 fn validate(draft: CameraDraft) -> Result<ValidDraft, CatalogError> {
