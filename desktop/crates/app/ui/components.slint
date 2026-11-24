@@ -8,6 +8,9 @@ export component AppButton inherits Rectangle {
     in property <bool> danger: false;
     in property <bool> subtle: false;
     in property <bool> enabled: true;
+    // Nome para leitores de tela quando o texto se repete (por exemplo
+    // "Adicionar" em cada linha).
+    in property <string> accessible-text: root.text;
     callback clicked();
 
     height: Theme.size-control-height;
@@ -15,7 +18,7 @@ export component AppButton inherits Rectangle {
     horizontal-stretch: 0;
     border-radius: Theme.radius-s;
     accessible-role: button;
-    accessible-label: root.text;
+    accessible-label: root.accessible-text;
     accessible-enabled: root.enabled;
     accessible-action-default => {
         if (root.enabled) {

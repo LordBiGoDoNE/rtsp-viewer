@@ -16,12 +16,6 @@ pub struct OnvifStreamResolver {
     client: OnvifClient,
 }
 
-impl OnvifStreamResolver {
-    pub fn new(client: OnvifClient) -> Self {
-        Self { client }
-    }
-}
-
 impl StreamResolver for OnvifStreamResolver {
     fn resolve(
         &self,
@@ -78,12 +72,6 @@ fn map_error(e: OnvifError) -> ResolveError {
 #[derive(Default)]
 pub struct OnvifCameraDiscovery {
     config: DiscoveryConfig,
-}
-
-impl OnvifCameraDiscovery {
-    pub fn new(config: DiscoveryConfig) -> Self {
-        Self { config }
-    }
 }
 
 impl CameraDiscovery for OnvifCameraDiscovery {

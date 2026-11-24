@@ -56,15 +56,15 @@ rede não confiável (grupos 1 e 2), concorrência (grupo 4).
 
 ## 4. Interface (`task/descoberta-onvif/interface`, base: grupo 3)
 
-- [ ] 4.1 `design/telas.md`: tela "Procurar câmeras", estados da consulta e
+- [x] 4.1 `design/telas.md`: tela "Procurar câmeras", estados da consulta e
   escolha de fabricante; tokens novos, se houver.
-- [ ] 4.2 Botão "Procurar câmeras" e tela de resultados (procurando,
+- [x] 4.2 Botão "Procurar câmeras" e tela de resultados (procurando,
   encontradas, "Já cadastrada", nenhuma encontrada com dicas, procurar de
   novo).
-- [ ] 4.3 Formulário: endereço só com host, "Consultando a câmera…" com
+- [x] 4.3 Formulário: endereço só com host, "Consultando a câmera…" com
   cancelar, erro de autenticação e lista de fabricantes quando o ONVIF falhar;
   nome sugerido pelo dispositivo.
-- [ ] 4.4 Busca e consulta fora da thread da UI, com sessão (resultado antigo
+- [x] 4.4 Busca e consulta fora da thread da UI, com sessão (resultado antigo
   ignorado); testes de UI com o backend de testes do Slint.
 
 ## 5. Fechamento (`task/descoberta-onvif/fechamento`, base: grupo 4)
