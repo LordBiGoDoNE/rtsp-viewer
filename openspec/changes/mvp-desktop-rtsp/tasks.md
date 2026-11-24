@@ -70,18 +70,19 @@ CI (grupo 1).
 
 ## 4. Interface (`task/mvp-desktop-rtsp/interface`, base: grupo 3)
 
-- [ ] 4.1 `design/tokens.json`, `design/telas.md` e `build.rs` gerando o
+- [x] 4.1 `design/tokens.json`, `design/telas.md` e `build.rs` gerando o
   `global Theme` do Slint, com erro claro para token inválido; verificação no CI
   de cor literal em `.slint`.
-- [ ] 4.2 Tela de lista (com estado vazio) e formulário de câmera com
+- [x] 4.2 Tela de lista (com estado vazio) e formulário de câmera com
   validação por campo e confirmação de remoção.
-- [ ] 4.3 Tela de visualização com estados, informações da câmera, tela cheia
+- [x] 4.3 Tela de visualização com estados, informações da câmera, tela cheia
   (F11, duplo clique, Esc) e pedido de senha quando não há cofre.
-- [ ] 4.4 Wiring no `main`: janela mostrada antes de qualquer acesso ao cofre,
+- [x] 4.4 Wiring no `main`: janela mostrada antes de qualquer acesso ao cofre,
   nenhuma conexão automática, medição de boot opcional
-  (`RTSP_VIEWER_BOOT_TRACE=1`).
-- [ ] 4.5 Tela "Sobre" com o componente `AboutSlint` (D7).
-- [ ] 4.6 Testes da lógica de apresentação com o backend de testes do Slint.
+  (`RTSP_VIEWER_BOOT_TRACE=<arquivo>` grava o tempo até a primeira
+  renderização; `RTSP_VIEWER_BOOT_EXIT=1` fecha o app logo depois).
+- [x] 4.5 Tela "Sobre" com o componente `AboutSlint` (D7).
+- [x] 4.6 Testes da lógica de apresentação com o backend de testes do Slint.
 
 ## 5. Fechamento (`task/mvp-desktop-rtsp/fechamento`, base: grupo 4)
 

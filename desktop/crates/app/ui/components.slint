@@ -1,0 +1,151 @@
+// Componentes básicos com a identidade de design/tokens.json (via Theme).
+// Nenhuma cor literal aqui: tudo vem do tema gerado.
+import { Theme } from "theme.slint";
+
+export component AppButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    in property <bool> subtle: false;
+    in property <bool> enabled: true;
+    callback clicked();
+
+    height: Theme.size-control-height;
+    min-width: label.preferred-width + 2 * Theme.space-l;
+    horizontal-stretch: 0;
+    border-radius: Theme.radius-s;
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-default => {
+        if (root.enabled) {
+            root.clicked();
+        }
+    }
+    opacity: root.enabled ? 1 : 0.5;
+    background: root.danger ? Theme.color-danger
+        : root.primary ? (touch.has-hover ? Theme.color-primary-hover : Theme.color-primary)
+        : root.subtle ? (touch.has-hover ? Theme.color-surface-hover : transparent)
+        : (touch.has-hover ? Theme.color-surface-hover : Theme.color-surface-raised);
+
+    label := Text {
+        width: parent.width;
+        height: parent.height;
+        text: root.text;
+        color: root.primary ? Theme.color-on-primary
+            : root.danger ? Theme.color-on-danger
+            : Theme.color-text;
+        font-size: Theme.font-size-body;
+        font-weight: Theme.font-weight-bold;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component TextField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> password: false;
+    in property <bool> has-error: false;
+    callback accepted();
+
+    height: Theme.size-control-height;
+    border-radius: Theme.radius-s;
+    border-width: 1px;
+    background: Theme.color-surface-raised;
+    border-color: root.has-error ? Theme.color-danger
+        : input.has-focus ? Theme.color-focus
+        : Theme.color-border;
+    forward-focus: input;
+
+    input := TextInput {
+        x: Theme.space-m;
+        width: parent.width - 2 * Theme.space-m;
+        height: parent.height;
+        text <=> root.text;
+        color: Theme.color-text;
+        font-size: Theme.font-size-body;
+        vertical-alignment: center;
+        single-line: true;
+        input-type: root.password ? InputType.password : InputType.text;
+        accepted => {
+            root.accepted();
+        }
+    }
+
+    if root.text == "": Text {
+        x: input.x;
+        width: input.width;
+        height: parent.height;
+        vertical-alignment: center;
+        text: root.placeholder;
+        color: Theme.color-text-muted;
+        font-size: Theme.font-size-body;
+        overflow: elide;
+    }
+}
+
+/// Rótulo, campo (filho) e mensagem de erro ou de apoio.
+export component FormField inherits VerticalLayout {
+    in property <string> label;
+    in property <string> error;
+    in property <string> hint;
+    spacing: Theme.space-xs;
+
+    Text {
+        text: root.label;
+        color: Theme.color-text-muted;
+        font-size: Theme.font-size-small;
+    }
+
+    @children
+
+    if root.error != "": Text {
+        text: root.error;
+        color: Theme.color-danger;
+        font-size: Theme.font-size-small;
+        wrap: word-wrap;
+    }
+    if root.error == "" && root.hint != "": Text {
+        text: root.hint;
+        color: Theme.color-text-muted;
+        font-size: Theme.font-size-small;
+        wrap: word-wrap;
+    }
+}
+
+/// Fundo escurecido que bloqueia cliques e centraliza um diálogo (filho).
+export component Modal inherits Rectangle {
+    background: Theme.color-overlay;
+
+    TouchArea { }
+
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            Rectangle {
+                width: Theme.size-dialog-width;
+                background: Theme.color-surface;
+                border-radius: Theme.radius-m;
+                border-width: 1px;
+                border-color: Theme.color-border;
+                VerticalLayout {
+                    padding: Theme.space-xl;
+                    spacing: Theme.space-m;
+                    @children
+                }
+            }
+        }
+    }
+}

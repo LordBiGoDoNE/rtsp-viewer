@@ -139,6 +139,22 @@ impl StreamPlayer for FfmpegPlayer {
         }
         Box::new(Handle { stop })
     }
+
+    /// Cria o dispositivo de hardware numa thread, uma vez por processo, para
+    /// que a primeira câmera não pague esse custo (design.md, D3). Não roda no
+    /// boot: o dispositivo ocupa memória que o usuário só deve pagar quando
+    /// mostra intenção de abrir uma câmera.
+    fn prepare(&self) {
+        static STARTED: AtomicBool = AtomicBool::new(false);
+        if !self.config.hardware_decoding || STARTED.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let _ = thread::Builder::new().name("hw-warm-up".into()).spawn(|| {
+            if crate::init().is_ok() {
+                hw::warm_up();
+            }
+        });
+    }
 }
 
 struct Handle {
@@ -172,6 +188,12 @@ enum SessionEnd {
 }
 
 fn run(request: &StreamRequest, sink: &PlayerSink, stop: &Arc<AtomicBool>, config: &PlayerConfig) {
+    if let Err(e) = crate::init() {
+        sink(PlayerEvent::State(PlayerState::Failed(StreamError::Other(
+            format!("FFmpeg não inicializou: {e}"),
+        ))));
+        return;
+    }
     let mut policy = ReconnectPolicy::new();
     // Decidido por câmera: depois de uma falha de hardware, o resto da
     // reprodução desta câmera usa software.

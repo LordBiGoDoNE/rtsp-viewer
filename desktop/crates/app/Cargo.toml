@@ -26,6 +26,8 @@ zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] 
 
 [build-dependencies]
 slint-build.workspace = true
+serde_json = "1.0"
 
 [dev-dependencies]
 serde_json = "1.0"
+i-slint-backend-testing = "=1.19.1"
