@@ -38,3 +38,14 @@ test('menção fora de tabela não conta como registro', () => {
   const registro = 'Texto citando app-android.\n| Change |\n| --- |\n';
   assert.deepEqual(archivedWithoutRegistry(['2026-12-01-app-android'], registro), ['app-android']);
 });
+
+test('nome que é prefixo de outra change não conta como registrado', () => {
+  const registro = '| Change | Issue |\n| --- | --- |\n| `app-android` | #2 |\n';
+  assert.deepEqual(archivedWithoutRegistry(['2026-12-01-app'], registro), ['app']);
+  assert.deepEqual(archivedWithoutRegistry(['2026-12-01-app-android'], registro), []);
+});
+
+test('célula da change sem crases também conta como registro', () => {
+  const registro = '| Change | Issue |\n| --- | --- |\n| app | #3 |\n';
+  assert.deepEqual(archivedWithoutRegistry(['2026-12-01-app'], registro), []);
+});
