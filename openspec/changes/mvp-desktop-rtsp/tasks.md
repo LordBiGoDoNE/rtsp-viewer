@@ -79,7 +79,8 @@ CI (grupo 1).
   (F11, duplo clique, Esc) e pedido de senha quando não há cofre.
 - [x] 4.4 Wiring no `main`: janela mostrada antes de qualquer acesso ao cofre,
   nenhuma conexão automática, medição de boot opcional
-  (`RTSP_VIEWER_BOOT_TRACE=1`).
+  (`RTSP_VIEWER_BOOT_TRACE=<arquivo>` grava o tempo até a primeira
+  renderização; `RTSP_VIEWER_BOOT_EXIT=1` fecha o app logo depois).
 - [x] 4.5 Tela "Sobre" com o componente `AboutSlint` (D7).
 - [x] 4.6 Testes da lógica de apresentação com o backend de testes do Slint.
 
