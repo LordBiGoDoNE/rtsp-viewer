@@ -62,9 +62,18 @@ foreach ($f in $files) {
 }
 if (Get-ChildItem $Stage -Directory) { $errors.Add('o pacote não deve ter subpastas') }
 
+# Falha (em vez de devolver lista vazia) se o llvm-objdump falhar ou não achar
+# nenhuma importação: $ErrorActionPreference não cobre programas nativos, e uma
+# lista vazia deixaria passar uma importação indevida sem aviso.
 function Get-Imports([string]$Path) {
-    & $ObjDump -p $Path | Select-String -CaseSensitive 'DLL Name: (\S+)' |
-        ForEach-Object { $_.Matches[0].Groups[1].Value.ToLowerInvariant() } | Sort-Object -Unique
+    $out = & $ObjDump -p $Path 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "llvm-objdump falhou (código $LASTEXITCODE) ao ler ${Path}: $(($out | Out-String).Trim())"
+    }
+    $imports = @($out | Select-String -CaseSensitive 'DLL Name: (\S+)' |
+        ForEach-Object { $_.Matches[0].Groups[1].Value.ToLowerInvariant() } | Sort-Object -Unique)
+    if ($imports.Count -eq 0) { throw "nenhuma importação (DLL Name) encontrada em $Path" }
+    $imports
 }
 
 $packaged = @{}
