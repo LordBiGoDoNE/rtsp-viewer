@@ -49,7 +49,7 @@ Máquina de referência: Windows 11 do desenvolvedor, build release do pacote `.
 | Pacote Linux `.deb` | ver o artefato do CI (o FFmpeg vem da distribuição) | |
 | Decodificação | D3D11VA no Windows (hardware), com fallback para software | |
 
-O pacote Windows passa da meta porque o build LGPL do FFmpeg traz todos os codecs: só o `avcodec` tem 87 MB. O build mínimo do FFmpeg é uma spec separada (ADR 0002, decisão D4).
+O pacote Windows passa da meta porque o build LGPL do FFmpeg traz todos os codecs: só o `avcodec` tem 87 MB. O build mínimo do FFmpeg é uma spec separada (ADR 0002, decisão D4; issue #6).
 
 ## Desenvolver (desktop)
 
