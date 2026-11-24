@@ -230,6 +230,45 @@ mod tests {
         fs::remove_dir_all(dir).ok();
     }
 
+    /// Senhas com `/`, `?` ou `#` sem codificação não podem chegar ao
+    /// arquivo: a URL é recusada na validação e, se aparecer no arquivo, ele
+    /// é tratado como corrompido em vez de carregado.
+    #[test]
+    fn senha_com_caracteres_reservados_nunca_chega_ao_arquivo() {
+        let casos = [
+            ("rtsp://admin:1234/abc@10.0.0.2/s", "1234/abc"),
+            ("rtsp://admin:1234?abc@host/s", "1234?abc"),
+            ("rtsp://admin:12345#x@192.168.0.10/stream", "12345#x"),
+        ];
+        for (url, senha) in casos {
+            // Se a URL for aceita (regra futura), o arquivo gravado não pode
+            // conter nenhum pedaço da senha.
+            if let Ok(parsed) = RtspUrl::parse(url) {
+                let dir = temp_dir();
+                let repo = JsonCameraRepository::new(&dir);
+                let cam = Camera::new(CameraName::parse("A").unwrap(), parsed.url, parsed.username);
+                repo.save(&[cam]).unwrap();
+                let text = fs::read_to_string(repo.path()).unwrap();
+                fs::remove_dir_all(dir).ok();
+                for pedaco in senha.split(['/', '?', '#']) {
+                    assert!(!text.contains(pedaco), "{url}: senha no arquivo");
+                }
+            }
+
+            let dir = temp_dir();
+            let repo = JsonCameraRepository::new(&dir);
+            let conteudo = format!(
+                r#"{{"version":1,"cameras":[{{"id":"6f1c2a9e-1d55-4d3c-9b6c-0d0b9d7c2f11","name":"A","url":{}}}]}}"#,
+                serde_json::to_string(url).unwrap()
+            );
+            fs::write(repo.path(), conteudo).unwrap();
+            let loaded = repo.load().unwrap();
+            assert!(loaded.cameras.is_empty(), "{url}");
+            assert!(loaded.warning.is_some(), "{url}");
+            fs::remove_dir_all(dir).ok();
+        }
+    }
+
     #[test]
     fn arquivo_corrompido_e_preservado() {
         let dir = temp_dir();
