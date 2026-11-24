@@ -37,21 +37,21 @@ CI (grupo 1).
 
 ## 2. Núcleo e cadastro (`task/mvp-desktop-rtsp/nucleo`, base: grupo 1)
 
-- [ ] 2.1 `core`: `CameraId`, `CameraName`, `RtspUrl` (validação e extração de
+- [x] 2.1 `core`: `CameraId`, `CameraName`, `RtspUrl` (validação e extração de
   credenciais), `Camera` com métodos de intenção (renomear, trocar URL, trocar
   usuário) e erros de domínio tipados.
-- [ ] 2.2 `core`: portas `CameraRepository`, `CredentialStore` e `StreamPlayer`
+- [x] 2.2 `core`: portas `CameraRepository`, `CredentialStore` e `StreamPlayer`
   (com os estados e eventos do player) e os casos de uso adicionar, editar,
   remover (inclusive a senha) e listar.
-- [ ] 2.3 Testes do `core` sem framework: validação de nome e URL, extração de
+- [x] 2.3 Testes do `core` sem framework: validação de nome e URL, extração de
   credenciais, casos de uso com portas em memória.
-- [ ] 2.4 `app/infrastructure`: repositório JSON (`directories`, campo
+- [x] 2.4 `app/infrastructure`: repositório JSON (`directories`, campo
   `version`, escrita atômica, preservação de arquivo corrompido) com testes em
   diretório temporário.
-- [ ] 2.5 `app/infrastructure`: `CredentialStore` com `keyring`, fallback em
+- [x] 2.5 `app/infrastructure`: `CredentialStore` com `keyring`, fallback em
   memória sem cofre, e redação de credenciais em logs e mensagens; testes da
   redação e do fallback.
-- [ ] 2.6 Teste de arquitetura: `core` sem dependências proibidas
+- [x] 2.6 Teste de arquitetura: `core` sem dependências proibidas
   (`cargo metadata`).
 
 ## 3. Player FFmpeg (`task/mvp-desktop-rtsp/player`, base: grupo 2)
