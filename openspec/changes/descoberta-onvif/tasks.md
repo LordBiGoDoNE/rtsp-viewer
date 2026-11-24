@@ -69,10 +69,10 @@ rede não confiável (grupos 1 e 2), concorrência (grupo 4).
 
 ## 5. Fechamento (`task/descoberta-onvif/fechamento`, base: grupo 4)
 
-- [ ] 5.1 Medir o tempo de busca e de consulta (simulador e câmera falsa) e o
+- [x] 5.1 Medir o tempo de busca e de consulta (simulador e câmera falsa) e o
   efeito no tamanho do pacote e no boot (meta de boot mantida); registrar no
   README.
-- [ ] 5.2 Roteiro de teste com o simulador e com a câmera real do usuário (Tapo:
+- [x] 5.2 Roteiro de teste com o simulador e com a câmera real do usuário (Tapo:
   "Conta da câmera" e ONVIF na porta 2020).
-- [ ] 5.3 Teste de ponta a ponta do sistema local com a cadeia completa
+- [x] 5.3 Teste de ponta a ponta do sistema local com a cadeia completa
   (`teste-local.md`).
