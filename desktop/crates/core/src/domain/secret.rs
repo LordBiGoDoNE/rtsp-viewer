@@ -50,6 +50,11 @@ impl fmt::Debug for ConnectionUrl {
 
 /// Remove credenciais de URLs `rtsp://`/`rtsps://` presentes num texto
 /// qualquer (mensagens do FFmpeg, erros), trocando `usuario:senha@` por `***@`.
+///
+/// Tudo entre o esquema e o **último** `@` da palavra (até o próximo espaço)
+/// é mascarado, e não só a autoridade aparente: uma senha com `/`, `?` ou `#`
+/// sem codificação deixaria parte dela antes do corte da autoridade. Na
+/// dúvida, mascarar a mais (um `@` legítimo no caminho) é o lado seguro.
 pub fn redact_credentials(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
@@ -59,18 +64,16 @@ pub fn redact_credentials(text: &str) -> String {
         let sep = from_scheme.find("://").map(|i| i + 3).unwrap_or(0);
         let (scheme, after_scheme) = from_scheme.split_at(sep);
         out.push_str(scheme);
-        let authority_end = after_scheme
-            .find(|c: char| c == '/' || c == '?' || c == '#' || c.is_whitespace())
+        let word_end = after_scheme
+            .find(char::is_whitespace)
             .unwrap_or(after_scheme.len());
-        let authority = &after_scheme[..authority_end];
-        match authority.rfind('@') {
+        rest = match after_scheme[..word_end].rfind('@') {
             Some(at) => {
                 out.push_str("***");
-                out.push_str(&authority[at..]);
+                &after_scheme[at..]
             }
-            None => out.push_str(authority),
-        }
-        rest = &after_scheme[authority_end..];
+            None => after_scheme,
+        };
     }
     out.push_str(rest);
     out
@@ -115,6 +118,25 @@ mod tests {
     fn arroba_na_senha_nao_vaza() {
         let msg = "rtsp://admin:a@b@host/s";
         assert_eq!(redact_credentials(msg), "rtsp://***@host/s");
+    }
+
+    #[test]
+    fn senha_com_barra_interrogacao_ou_cerquilha_nao_vaza() {
+        let casos = [
+            (
+                "falha rtsp://admin:1234/abc@10.0.0.2/s: 401",
+                "falha rtsp://***@10.0.0.2/s: 401",
+            ),
+            ("rtsp://admin:1234?abc@host/s", "rtsp://***@host/s"),
+            (
+                "rtsp://admin:12345#x@192.168.0.10/stream e mais",
+                "rtsp://***@192.168.0.10/stream e mais",
+            ),
+            ("rtsp://admin:x@y/z@host/s", "rtsp://***@host/s"),
+        ];
+        for (msg, esperado) in casos {
+            assert_eq!(redact_credentials(msg), esperado, "msg: {msg:?}");
+        }
     }
 
     #[test]

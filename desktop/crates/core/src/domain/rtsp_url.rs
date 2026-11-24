@@ -35,6 +35,10 @@ pub enum UrlError {
     InvalidCharacters,
     #[error("Usuário ou senha na URL com codificação inválida.")]
     InvalidCredentials,
+    #[error(
+        "Usuário ou senha na URL com /, ? ou # sem codificação. Informe a senha no campo Senha ou codifique esses caracteres (%2F, %3F, %23, %40)."
+    )]
+    UnencodedCredentials,
 }
 
 impl RtspUrl {
@@ -55,6 +59,13 @@ impl RtspUrl {
 
         let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
         let (authority, path) = rest.split_at(authority_end);
+        // `@` depois do fim da autoridade quase sempre é senha com `/`, `?`
+        // ou `#` sem codificação. Não há como saber onde ela termina, então a
+        // URL é recusada: aceitar faria parte da senha virar host, porta ou
+        // caminho, que são gravados no arquivo de configuração.
+        if path.contains('@') {
+            return Err(UrlError::UnencodedCredentials);
+        }
         let path = path.split('#').next().unwrap_or_default().to_string();
 
         let (userinfo, hostport) = match authority.rfind('@') {
@@ -309,10 +320,55 @@ mod tests {
             ("rtsp://[::1]x/s", UrlError::InvalidPort),
             ("rtsp://u:%zz@h/s", UrlError::InvalidCredentials),
             ("rtsp://u:%ff@h/s", UrlError::InvalidCredentials),
+            (
+                "rtsp://admin:1234/abc@10.0.0.2/s",
+                UrlError::UnencodedCredentials,
+            ),
+            (
+                "rtsp://admin:1234?abc@host/s",
+                UrlError::UnencodedCredentials,
+            ),
+            (
+                "rtsp://admin:12345#x@192.168.0.10/stream",
+                UrlError::UnencodedCredentials,
+            ),
+            ("rtsp://admin:x@y/z@host/s", UrlError::UnencodedCredentials),
         ];
         for (entrada, erro) in casos {
             assert_eq!(RtspUrl::parse(entrada), Err(erro), "entrada: {entrada:?}");
         }
+    }
+
+    /// Senha com `/`, `?` ou `#` sem codificação: o `@` fica depois do fim
+    /// aparente da autoridade. Nada disso pode ser aceito, senão a senha
+    /// vira host/porta/caminho e acaba gravada no `cameras.json`.
+    #[test]
+    fn recusa_arroba_fora_da_autoridade() {
+        for entrada in [
+            "rtsp://admin:1234/abc@10.0.0.2/s",
+            "rtsp://admin:1234?abc@host/s",
+            "rtsp://admin:12345#x@192.168.0.10/stream",
+            "rtsp://admin:x@y/z@host/s",
+            "rtsp://admin:a/b?c#d@host/s",
+            "rtsp://host/s?u=a@b",
+        ] {
+            assert_eq!(
+                RtspUrl::parse(entrada),
+                Err(UrlError::UnencodedCredentials),
+                "entrada: {entrada:?}"
+            );
+        }
+        // A mensagem orienta sem repetir a URL nem a senha.
+        let msg = UrlError::UnencodedCredentials.to_string();
+        assert!(msg.contains("campo Senha"));
+        assert!(!msg.contains("1234"));
+    }
+
+    #[test]
+    fn senha_codificada_com_caracteres_reservados_continua_aceita() {
+        let p = ok("rtsp://admin:1234%2Fa%3Fb%23c%40d%3Ae@10.0.0.2/s");
+        assert_eq!(p.url.to_string(), "rtsp://10.0.0.2/s");
+        assert_eq!(p.password.unwrap().expose(), "1234/a?b#c@d:e");
     }
 
     #[test]
