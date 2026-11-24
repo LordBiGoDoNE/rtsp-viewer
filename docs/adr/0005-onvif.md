@@ -36,7 +36,15 @@ Requisitos permanentes: leve, simples, sem rede no boot.
   - respostas HTTP limitadas a 256 KiB e UDP a 64 KiB;
   - XML sem DOCTYPE e com profundidade limitada;
   - URLs RTSP devolvidas validadas pelo `RtspUrl` do `core`, com as
-    credenciais embutidas descartadas.
+    credenciais embutidas descartadas;
+  - o `XAddr` de mídia de `GetCapabilities` não escolhe o host: as chamadas
+    autenticadas (`GetProfiles`, `GetStreamUri`) vão sempre para o host da
+    câmera, com a porta e o caminho do `XAddr`. Seguir outro host permitiria a
+    uma câmera ou máquina maliciosa na LAN desviar o cliente e colher digests
+    das credenciais para ataque de dicionário offline. A regra também cobre
+    firmwares que anunciam `0.0.0.0`, loopback ou o IP interno atrás de NAT.
+    `XAddr` que não é `http` ou ilegível: vale o serviço de dispositivo;
+  - cada consulta tem prazo total (10 s), repartido entre as chamadas dela.
 
 ## Consequências
 

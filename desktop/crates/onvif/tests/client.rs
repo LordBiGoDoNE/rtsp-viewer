@@ -154,6 +154,54 @@ fn hosts_invalidos_trocados_pelo_da_camera() {
     assert!(set.sub.is_none());
 }
 
+/// XAddr de mídia apontando para outro host (câmera maliciosa ou NAT): as
+/// chamadas autenticadas seguem para o host da câmera, nunca para o anunciado
+/// (ADR 0005). 192.0.2.10 é TEST-NET-1: se o cliente o seguisse, a conexão
+/// falharia e a consulta não chegaria aos perfis.
+#[test]
+fn xaddr_de_midia_em_outro_host_nao_recebe_credenciais() {
+    for auth in [SimAuth::WsSecurity, SimAuth::HttpDigest] {
+        let cfg = SimConfig {
+            auth,
+            media_host: Some("192.0.2.10".into()),
+            ..Default::default()
+        };
+        let sim = Simulator::start(cfg.clone());
+        let set = client()
+            .fetch_streams(&device(&sim), Some(&creds(&cfg)))
+            .unwrap_or_else(|e| panic!("{auth:?}: {e:?}"));
+        assert_eq!(set.main.url.to_string(), "rtsp://127.0.0.1:8554/main");
+        let traffic = sim.all_requests();
+        assert!(traffic.contains("GetProfiles"), "{auth:?}");
+        assert!(traffic.contains("GetStreamUri"), "{auth:?}");
+    }
+}
+
+/// O prazo total vale para a consulta inteira, não para cada chamada
+/// (design D1): seis chamadas de 400 ms passam de 1,5 s.
+#[test]
+fn prazo_total_vale_para_a_consulta_inteira() {
+    let cfg = SimConfig {
+        response_delay: Duration::from_millis(400),
+        ..Default::default()
+    };
+    let sim = Simulator::start(cfg.clone());
+    let c = OnvifClient::new(OnvifConfig {
+        connect_timeout: Duration::from_secs(2),
+        total_timeout: Duration::from_millis(1500),
+        probe_ports: vec![],
+        probe_connect_timeout: Duration::from_millis(500),
+    });
+    let start = std::time::Instant::now();
+    let result = c.fetch_streams(&device(&sim), Some(&creds(&cfg)));
+    let elapsed = start.elapsed();
+    assert!(
+        matches!(result, Err(OnvifError::Unreachable(_))),
+        "{result:?}"
+    );
+    assert!(elapsed < Duration::from_millis(2500), "{elapsed:?}");
+}
+
 #[test]
 fn credenciais_embutidas_na_url_devolvida_sao_descartadas() {
     let cfg = SimConfig {
