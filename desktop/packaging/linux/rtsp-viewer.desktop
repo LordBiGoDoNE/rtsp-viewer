@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=rtsp-viewer
+Comment=Client leve para câmeras RTSP
+Exec=rtsp-viewer
+Icon=camera-video
+Terminal=false
+Categories=AudioVideo;Video;Player;

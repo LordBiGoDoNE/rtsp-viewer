@@ -86,12 +86,12 @@ CI (grupo 1).
 
 ## 5. Fechamento (`task/mvp-desktop-rtsp/fechamento`, base: grupo 4)
 
-- [ ] 5.1 Empacotamento: `.zip` Windows com só as DLLs usadas e `.deb` com
+- [x] 5.1 Empacotamento: `.zip` Windows com só as DLLs usadas e `.deb` com
   `cargo deb`, como artefatos do CI.
-- [ ] 5.2 Medir boot (mediana de 10 execuções com 20 câmeras), tamanho dos
+- [x] 5.2 Medir boot (mediana de 10 execuções com 20 câmeras), tamanho dos
   pacotes e latência com a câmera falsa; registrar no README. Pacote Windows
   acima de 30 MB: abrir issue para build mínimo do FFmpeg (D4).
-- [ ] 5.3 README com instalação, uso, requisitos e câmera falsa; roteiro de
+- [x] 5.3 README com instalação, uso, requisitos e câmera falsa; roteiro de
   teste em `test-camera/roteiro.md`.
-- [ ] 5.4 Teste de ponta a ponta do sistema local com a cadeia completa
+- [x] 5.4 Teste de ponta a ponta do sistema local com a cadeia completa
   (`teste-local.md`).
