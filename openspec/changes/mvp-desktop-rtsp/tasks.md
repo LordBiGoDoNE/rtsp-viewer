@@ -2,8 +2,9 @@
 
 Issue: [#1](https://github.com/LordBiGoDoNE/rtsp-viewer/issues/1).
 Épica: `epic/mvp-desktop-rtsp`. Spec formalizada em 2026-11-24.
-Implementação: aguardando confirmação de início do usuário. Teste local pelo
-usuário: a definir na confirmação. Merges dependem da aprovação do pacote final.
+Implementação autorizada em 2026-11-24 (grupos 1–5). Teste local pelo usuário:
+sim. Licença do Slint: royalty-free (decisão do usuário de 2026-11-24). Merges
+dependem da aprovação do pacote final.
 
 Cada grupo é um PR em rascunho. Os grupos formam uma cadeia (cada um parte da
 branch do anterior e aponta para ela), porque cada um usa o código do anterior.

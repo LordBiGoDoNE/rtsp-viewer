@@ -127,7 +127,8 @@ de quadros além do último. Reconexão com backoff de 1, 2, 4, 8, 16 e 30 s
 
 Licença royalty-free do Slint, que permite app desktop e mobile, inclusive
 fechada, com atribuição: a tela "Sobre" mostra o componente `AboutSlint`.
-Registrado em ADR. Mudar para GPLv3 ou comercial exige decisão do usuário.
+Confirmada pelo usuário em 2026-11-24 e registrada em ADR. Mudar para GPLv3 ou
+comercial exige decisão do usuário.
 
 ### D8. CI e câmera falsa
 
