@@ -141,9 +141,7 @@ jobs:
       - name: Pacote sem VCRUNTIME e só com as DLLs esperadas
         working-directory: .
         run: |
-          $objdump = Join-Path $env:LIBCLANG_PATH 'llvm-objdump.exe'
-          $imports = & $objdump -p desktop/target/release/rtsp-viewer.exe | Select-String 'DLL Name: (\S+)' | ForEach-Object { $_.Matches[0].Groups[1].Value }
-          if ($imports -match '^(VCRUNTIME|MSVCP)') { throw "o executável depende do runtime do Visual C++: $($imports -match '^(VCRUNTIME|MSVCP)')" }
+          ./scripts/check-windows-package.ps1
           Get-ChildItem dist/rtsp-viewer-*-windows-x64 | Select-Object Name, Length | Format-Table -AutoSize
 
       - name: Artefato .zip

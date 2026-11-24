@@ -1,5 +1,6 @@
 # Runtime C estático no Windows: o executável não depende do VCRUNTIME140.dll
 # (Visual C++ Redistributable), então o .zip roda num Windows limpo. As DLLs do
-# FFmpeg usam só a UCRT, que faz parte do Windows 10 e 11.
+# FFmpeg usam só a UCRT, que faz parte do Windows 10 e 11. Conferido por
+# scripts/check-windows-package.ps1 (local e CI).
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
