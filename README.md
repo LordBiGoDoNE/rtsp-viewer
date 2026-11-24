@@ -4,7 +4,7 @@ Client leve para câmeras RTSP no Windows, Linux e Android: simples, rápido par
 
 ## Estado
 
-Desktop (Windows e Linux): primeira versão em desenvolvimento na spec `mvp-desktop-rtsp`. Ela cobre a lista de câmeras e a visualização de uma câmera com tela cheia. O Android ainda não começou.
+Desktop (Windows e Linux): primeira versão entregue em 2026-11-24 (spec `mvp-desktop-rtsp`). Ela cobre a lista de câmeras e a visualização de uma câmera com tela cheia. Os pacotes saem só como artefatos do CI; nada foi publicado. Antes de distribuir, falta resolver a issue #7 (avisos de licença). O Android ainda não começou.
 
 ## Stack
 
@@ -17,10 +17,10 @@ As duas interfaces compartilham a mesma identidade visual, definida em `design/`
 
 ## Funcionalidades previstas
 
-1. Lista de câmeras e visualização em tela cheia (desktop).
-2. App Android com o mesmo escopo.
-3. Grade com várias câmeras.
-4. Descoberta de câmeras na rede (ONVIF).
+1. Lista de câmeras e visualização em tela cheia (desktop). **Entregue.**
+2. Descoberta de câmeras na rede e cadastro só com IP, usuário e senha (ONVIF).
+3. App Android com o mesmo escopo.
+4. Grade com várias câmeras.
 5. Snapshot e gravação.
 
 O desenvolvimento segue specs OpenSpec em `openspec/`. As entregas ficam registradas em `docs/entregas.md`.
