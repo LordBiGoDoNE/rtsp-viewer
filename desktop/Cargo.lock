@@ -3972,6 +3972,7 @@ name = "rtsp-viewer"
 version = "0.1.0"
 dependencies = [
  "directories",
+ "i-slint-backend-testing",
  "keyring-core",
  "rtsp-viewer-core",
  "rtsp-viewer-media",

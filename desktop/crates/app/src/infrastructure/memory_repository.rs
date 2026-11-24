@@ -14,8 +14,15 @@ pub struct MemoryCameraRepository {
 
 impl CameraRepository for MemoryCameraRepository {
     fn load(&self) -> Result<LoadedCameras, RepositoryError> {
-        let cameras = self.cameras.lock().unwrap_or_else(|e| e.into_inner()).clone();
-        Ok(LoadedCameras { cameras, warning: None })
+        let cameras = self
+            .cameras
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        Ok(LoadedCameras {
+            cameras,
+            warning: None,
+        })
     }
 
     fn save(&self, cameras: &[Camera]) -> Result<(), RepositoryError> {

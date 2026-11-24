@@ -29,7 +29,8 @@ fn main() -> Result<(), slint::PlatformError> {
         }
     });
 
-    let _controller = ui::Controller::attach(&window, catalog, Box::new(FfmpegPlayer::default()), banner);
+    let _controller =
+        ui::Controller::attach(&window, catalog, Box::new(FfmpegPlayer::default()), banner);
     trace.attach(window.window());
     window.run()
 }
@@ -48,16 +49,19 @@ fn credentials() -> Box<SystemCredentialStore<KeyringBackend>> {
 
 fn load_catalog() -> (CameraCatalog, Option<String>) {
     let failure = match config_dir() {
-        Some(dir) => match CameraCatalog::load(Box::new(JsonCameraRepository::new(dir)), credentials()) {
-            Ok((catalog, warning)) => {
-                return (catalog, warning.as_ref().map(presentation::banner_for));
+        Some(dir) => {
+            match CameraCatalog::load(Box::new(JsonCameraRepository::new(dir)), credentials()) {
+                Ok((catalog, warning)) => {
+                    return (catalog, warning.as_ref().map(presentation::banner_for));
+                }
+                Err(e) => e.to_string(),
             }
-            Err(e) => e.to_string(),
-        },
+        }
         None => "diretório de configuração do usuário não encontrado".to_string(),
     };
-    let (catalog, _) = CameraCatalog::load(Box::new(MemoryCameraRepository::default()), credentials())
-        .expect("repositório em memória sempre carrega");
+    let (catalog, _) =
+        CameraCatalog::load(Box::new(MemoryCameraRepository::default()), credentials())
+            .expect("repositório em memória sempre carrega");
     (
         catalog,
         Some(format!(

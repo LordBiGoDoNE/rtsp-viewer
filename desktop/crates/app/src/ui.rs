@@ -121,9 +121,26 @@ impl Controller {
         let vault = catalog.passwords_are_persistent();
         self.with_window(|w| {
             w.set_form_editing(camera.is_some());
-            w.set_form_title(if camera.is_some() { "Editar câmera" } else { "Nova câmera" }.into());
-            w.set_form_name(camera.map(|c| c.name().as_str().to_string()).unwrap_or_default().into());
-            w.set_form_url(camera.map(|c| c.url().to_string()).unwrap_or_default().into());
+            w.set_form_title(
+                if camera.is_some() {
+                    "Editar câmera"
+                } else {
+                    "Nova câmera"
+                }
+                .into(),
+            );
+            w.set_form_name(
+                camera
+                    .map(|c| c.name().as_str().to_string())
+                    .unwrap_or_default()
+                    .into(),
+            );
+            w.set_form_url(
+                camera
+                    .map(|c| c.url().to_string())
+                    .unwrap_or_default()
+                    .into(),
+            );
             w.set_form_user(camera.and_then(|c| c.username()).unwrap_or_default().into());
             w.set_form_password("".into());
             w.set_name_error("".into());
@@ -137,7 +154,9 @@ impl Controller {
     }
 
     fn save_form(&self) {
-        let Some(w) = self.window.upgrade() else { return };
+        let Some(w) = self.window.upgrade() else {
+            return;
+        };
         let password = w.get_form_password().to_string();
         let draft = CameraDraft {
             name: w.get_form_name().into(),
@@ -162,7 +181,11 @@ impl Controller {
             // A câmera foi salva; só a senha falhou. O formulário passa a
             // editar essa câmera, para uma nova tentativa não duplicá-la.
             Err(CatalogError::AddedWithoutPassword { id, reason }) => {
-                let message = CatalogError::AddedWithoutPassword { id: id.clone(), reason }.to_string();
+                let message = CatalogError::AddedWithoutPassword {
+                    id: id.clone(),
+                    reason,
+                }
+                .to_string();
                 *self.editing.borrow_mut() = Some(id);
                 self.refresh_list();
                 w.set_form_editing(true);
@@ -187,8 +210,14 @@ impl Controller {
     // ------------------------------------------------------------ remoção
 
     fn request_remove(&self, id: &str) {
-        let Some(id) = CameraId::parse(id) else { return };
-        let name = self.catalog.borrow().get(&id).map(|c| c.name().as_str().to_string());
+        let Some(id) = CameraId::parse(id) else {
+            return;
+        };
+        let name = self
+            .catalog
+            .borrow()
+            .get(&id)
+            .map(|c| c.name().as_str().to_string());
         if let Some(name) = name {
             self.with_window(|w| {
                 w.set_confirm_remove_name(name.into());
@@ -198,7 +227,9 @@ impl Controller {
     }
 
     fn confirm_remove(&self) {
-        let Some(w) = self.window.upgrade() else { return };
+        let Some(w) = self.window.upgrade() else {
+            return;
+        };
         let id = CameraId::parse(&w.get_confirm_remove_id());
         w.set_confirm_remove_id("".into());
         if let Some(id) = id {
@@ -213,7 +244,9 @@ impl Controller {
     // ------------------------------------------------------------ visualização
 
     fn open_camera(&self, id: &str) {
-        let Some(id) = CameraId::parse(id) else { return };
+        let Some(id) = CameraId::parse(id) else {
+            return;
+        };
         let name = match self.catalog.borrow().get(&id) {
             Some(c) => c.name().as_str().to_string(),
             None => return,
@@ -232,7 +265,9 @@ impl Controller {
 
     fn connect(&self, typed: Option<Password>) {
         self.stop_playback();
-        let Some(id) = self.current.borrow().clone() else { return };
+        let Some(id) = self.current.borrow().clone() else {
+            return;
+        };
         let request = self.catalog.borrow().connection_request(&id, typed);
         match request {
             Ok(request) => self.start_playback(request),
@@ -260,7 +295,12 @@ impl Controller {
 
     fn start_playback(&self, request: StreamRequest) {
         let session = self.session.fetch_add(1, Ordering::SeqCst) + 1;
-        let sink = make_sink(self.window.clone(), self.session.clone(), session, request.display_url.clone());
+        let sink = make_sink(
+            self.window.clone(),
+            self.session.clone(),
+            session,
+            request.display_url.clone(),
+        );
         self.with_window(|w| {
             w.set_view_state(ViewState::Connecting);
             w.set_view_message("Conectando…".into());
@@ -299,7 +339,9 @@ impl Controller {
     }
 
     fn submit_password(&self) {
-        let Some(w) = self.window.upgrade() else { return };
+        let Some(w) = self.window.upgrade() else {
+            return;
+        };
         let password = Password::new(w.get_prompt_password().to_string());
         w.set_prompt_password("".into());
         w.set_password_prompt(false);
@@ -314,7 +356,9 @@ impl Controller {
     /// Esc fecha o que estiver por cima: diálogo, tela cheia, formulário,
     /// visualização ou "Sobre".
     fn escape(&self) {
-        let Some(w) = self.window.upgrade() else { return };
+        let Some(w) = self.window.upgrade() else {
+            return;
+        };
         match w.get_page() {
             Page::List if !w.get_confirm_remove_id().is_empty() => {
                 w.set_confirm_remove_id("".into());
@@ -439,7 +483,10 @@ mod tests {
 
     impl StreamPlayer for FakePlayer {
         fn start(&self, request: StreamRequest, _sink: PlayerSink) -> Box<dyn PlaybackHandle> {
-            self.requests.lock().unwrap().push(request.url.expose().to_string());
+            self.requests
+                .lock()
+                .unwrap()
+                .push(request.url.expose().to_string());
             Box::new(FakeHandle(self.stops.clone()))
         }
     }
@@ -473,13 +520,22 @@ mod tests {
         w.invoke_add_camera();
         assert_eq!(w.get_page(), Page::Form);
         assert_eq!(w.get_form_title(), "Nova câmera");
-        add(&w, "Garagem", "rtsp://admin:segredo@192.168.0.10/stream1", "", "");
+        add(
+            &w,
+            "Garagem",
+            "rtsp://admin:segredo@192.168.0.10/stream1",
+            "",
+            "",
+        );
         assert_eq!(w.get_page(), Page::List);
         let rows = w.get_cameras();
         assert_eq!(rows.row_count(), 1);
         let row = rows.row_data(0).unwrap();
         assert_eq!(row.name, "Garagem");
-        assert_eq!(row.address, "rtsp://192.168.0.10/stream1", "lista nunca mostra a senha");
+        assert_eq!(
+            row.address, "rtsp://192.168.0.10/stream1",
+            "lista nunca mostra a senha"
+        );
     }
 
     #[test]
@@ -488,7 +544,10 @@ mod tests {
         add(&w, "", "http://x", "", "");
         assert_eq!(w.get_page(), Page::Form);
         assert_eq!(w.get_name_error(), "Informe um nome.");
-        assert_eq!(w.get_url_error(), "O endereço deve começar com rtsp:// ou rtsps://.");
+        assert_eq!(
+            w.get_url_error(),
+            "O endereço deve começar com rtsp:// ou rtsps://."
+        );
     }
 
     #[test]
@@ -538,7 +597,10 @@ mod tests {
         assert_eq!(w.get_page(), Page::Viewer);
         assert_eq!(w.get_viewer_name(), "A");
         assert_eq!(w.get_view_message(), "Conectando…");
-        assert_eq!(player.requests.lock().unwrap().as_slice(), ["rtsp://admin:p1@h/s"]);
+        assert_eq!(
+            player.requests.lock().unwrap().as_slice(),
+            ["rtsp://admin:p1@h/s"]
+        );
         w.invoke_escape_pressed();
         assert_eq!(w.get_page(), Page::List);
         assert_eq!(player.stops.load(Ordering::SeqCst), 1);
@@ -556,7 +618,10 @@ mod tests {
         w.invoke_submit_password();
         assert!(!w.get_password_prompt());
         assert_eq!(w.get_prompt_password(), "", "campo de senha é limpo");
-        assert_eq!(player.requests.lock().unwrap().as_slice(), ["rtsp://admin:digitada@h/s"]);
+        assert_eq!(
+            player.requests.lock().unwrap().as_slice(),
+            ["rtsp://admin:digitada@h/s"]
+        );
     }
 
     #[test]
@@ -576,6 +641,8 @@ mod tests {
         let current = Arc::new(AtomicU64::new(2));
         let sink = make_sink(slint::Weak::default(), current, 1, "rtsp://h".into());
         // Sem janela e de sessão antiga: não deve entrar em pânico nem agendar nada.
-        sink(PlayerEvent::State(rtsp_viewer_core::application::ports::PlayerState::Playing));
+        sink(PlayerEvent::State(
+            rtsp_viewer_core::application::ports::PlayerState::Playing,
+        ));
     }
 }

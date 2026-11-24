@@ -19,9 +19,10 @@ pub fn view_for(state: &PlayerState) -> Option<(View, String)> {
     Some(match state {
         PlayerState::Connecting => (View::Connecting, "Conectando…".into()),
         PlayerState::Playing => (View::Playing, String::new()),
-        PlayerState::Reconnecting { attempt, .. } => {
-            (View::Reconnecting, format!("Reconectando (tentativa {attempt})…"))
-        }
+        PlayerState::Reconnecting { attempt, .. } => (
+            View::Reconnecting,
+            format!("Reconectando (tentativa {attempt})…"),
+        ),
         PlayerState::Failed(e) => (View::Failed, e.to_string()),
         PlayerState::Stopped => return None,
     })
@@ -77,10 +78,19 @@ mod tests {
 
     #[test]
     fn textos_dos_estados() {
-        assert_eq!(view_for(&PlayerState::Connecting), Some((View::Connecting, "Conectando…".into())));
-        assert_eq!(view_for(&PlayerState::Playing), Some((View::Playing, String::new())));
         assert_eq!(
-            view_for(&PlayerState::Reconnecting { attempt: 3, delay: Duration::from_secs(4) }),
+            view_for(&PlayerState::Connecting),
+            Some((View::Connecting, "Conectando…".into()))
+        );
+        assert_eq!(
+            view_for(&PlayerState::Playing),
+            Some((View::Playing, String::new()))
+        );
+        assert_eq!(
+            view_for(&PlayerState::Reconnecting {
+                attempt: 3,
+                delay: Duration::from_secs(4)
+            }),
             Some((View::Reconnecting, "Reconectando (tentativa 3)…".into()))
         );
         assert_eq!(
@@ -107,12 +117,22 @@ mod tests {
     #[test]
     fn erros_vao_para_o_campo_certo() {
         let e = CatalogError::Invalid(vec![
-            FieldError { field: Field::Name, message: "Informe um nome.".into() },
-            FieldError { field: Field::Url, message: "URL ruim".into() },
+            FieldError {
+                field: Field::Name,
+                message: "Informe um nome.".into(),
+            },
+            FieldError {
+                field: Field::Url,
+                message: "URL ruim".into(),
+            },
         ]);
         assert_eq!(
             form_errors(&e),
-            FormErrors { name: "Informe um nome.".into(), url: "URL ruim".into(), general: String::new() }
+            FormErrors {
+                name: "Informe um nome.".into(),
+                url: "URL ruim".into(),
+                general: String::new()
+            }
         );
         let s = form_errors(&CatalogError::Storage("disco cheio".into()));
         assert!(s.general.contains("disco cheio"));
@@ -120,7 +140,9 @@ mod tests {
 
     #[test]
     fn aviso_de_arquivo_corrompido() {
-        let b = banner_for(&RepositoryWarning::CorruptedFileRecovered { backup: "C:/x.corrompido".into() });
+        let b = banner_for(&RepositoryWarning::CorruptedFileRecovered {
+            backup: "C:/x.corrompido".into(),
+        });
         assert!(b.contains("C:/x.corrompido"));
     }
 }

@@ -190,11 +190,18 @@ export component AppWindow inherits Window {
             }
 
             if root.cameras.length > 0: Flickable {
-                viewport-height: rows.preferred-height;
+                content-height: rows.preferred-height;
                 rows := VerticalLayout {
                     width: parent.width;
                     for camera[i] in root.cameras: Rectangle {
                         height: Theme.size-list-item-height;
+                        accessible-role: button;
+                        accessible-label: camera.name;
+                        accessible-description: camera.address;
+                        accessible-action-default => {
+                            root.selected-index = i;
+                            root.open-camera(camera.id);
+                        }
                         background: (row-touch.has-hover || i == root.selected-index) ? Theme.color-surface-hover : transparent;
                         row-touch := TouchArea {
                             mouse-cursor: pointer;
