@@ -1,7 +1,6 @@
 //! Cliente ONVIF (design D1–D3): localiza o serviço do dispositivo, mede o
 //! relógio da câmera e obtém as URLs RTSP dos streams principal e secundário.
 
-use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -536,22 +535,15 @@ fn choose(profiles: &[ProfileInfo]) -> Option<(&ProfileInfo, Option<&ProfileInfo
     Some((main, (area(sub) < area(main)).then_some(sub)))
 }
 
-/// Host que não identifica a câmera na rede: não especificado, loopback
-/// (127.0.0.0/8, `::1`) ou `localhost`.
-fn is_bad_host(host: &str) -> bool {
-    if host.eq_ignore_ascii_case("localhost") || matches!(host, "::" | "::1") {
-        return true;
-    }
-    host.parse::<Ipv4Addr>()
-        .is_ok_and(|ip| ip.is_unspecified() || ip.is_loopback())
-}
-
-/// Valida a URL RTSP devolvida, descarta credenciais embutidas e troca host
-/// inválido pelo host da câmera (design D3).
+/// Valida a URL RTSP devolvida, descarta credenciais embutidas e usa sempre o
+/// host da câmera, mantendo esquema, porta e caminho/consulta (design D3,
+/// ADR 0005). A URL é entrada de rede não confiável e a senha do cadastro vai
+/// junto ao abrir o stream: o host anunciado (seja `0.0.0.0`, loopback, IP
+/// interno atrás de NAT ou outro host qualquer) nunca é seguido.
 fn sanitize_stream_url(uri: &str, camera_host: &str) -> Result<RtspUrl, OnvifError> {
     let parsed = RtspUrl::parse(uri)
         .map_err(|e| OnvifError::Protocol(format!("URL RTSP inválida ({e})")))?;
-    if !is_bad_host(parsed.url.host()) {
+    if parsed.url.host() == camera_host {
         return Ok(parsed.url);
     }
     let text = parsed.url.to_string();
@@ -689,6 +681,44 @@ mod tests {
     }
 
     #[test]
+    fn url_rtsp_fica_sempre_no_host_da_camera() {
+        let s = |u: &str, h: &str| sanitize_stream_url(u, h).unwrap().to_string();
+        // Outro IP (NAT ou câmera maliciosa) ou nome DNS: host da câmera,
+        // esquema, porta e caminho/consulta originais.
+        assert_eq!(
+            s("rtsp://203.0.113.7:554/live?ch=1", "192.168.1.120"),
+            "rtsp://192.168.1.120:554/live?ch=1"
+        );
+        assert_eq!(
+            s("rtsps://camera.example/s", "192.168.1.120"),
+            "rtsps://192.168.1.120/s"
+        );
+        assert_eq!(
+            s("rtsp://10.0.0.9:8554", "192.168.1.120"),
+            "rtsp://192.168.1.120:8554"
+        );
+        // IPv6 nos dois sentidos, com colchetes corretos.
+        assert_eq!(
+            s("rtsp://[2001:db8::9]:554/s", "192.168.1.120"),
+            "rtsp://192.168.1.120:554/s"
+        );
+        assert_eq!(
+            s("rtsp://203.0.113.7:554/s", "fe80::1"),
+            "rtsp://[fe80::1]:554/s"
+        );
+        assert_eq!(
+            s("rtsp://u:p@[2001:db8::9]/s", "fe80::1"),
+            "rtsp://[fe80::1]/s"
+        );
+        // Host anunciado parecido com o da câmera e repetido no caminho: só
+        // a autoridade é trocada.
+        assert_eq!(
+            s("rtsp://192.168.1.12/192.168.1.12", "192.168.1.120"),
+            "rtsp://192.168.1.120/192.168.1.12"
+        );
+    }
+
+    #[test]
     fn servicos_e_caminhos() {
         let d = DeviceService::for_host("192.168.1.120", 2020);
         assert_eq!(d.url, "http://192.168.1.120:2020/onvif/device_service");
@@ -773,24 +803,5 @@ mod tests {
         assert_eq!(m("http://10.0.0.5:99999/m", "10.0.0.5"), None);
         assert_eq!(m("http://10.0.0.5:0/m", "10.0.0.5"), None);
         assert_eq!(m("http://10.0.0.5/a b", "10.0.0.5"), None);
-    }
-
-    #[test]
-    fn hosts_invalidos() {
-        for h in [
-            "0.0.0.0",
-            "127.0.0.1",
-            "127.1.2.3",
-            "127.255.255.254",
-            "localhost",
-            "LocalHost",
-            "::",
-            "::1",
-        ] {
-            assert!(is_bad_host(h), "{h}");
-        }
-        for h in ["192.168.1.120", "128.0.0.1", "fe80::1", "camera.lan"] {
-            assert!(!is_bad_host(h), "{h}");
-        }
     }
 }
