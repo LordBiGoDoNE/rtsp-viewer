@@ -61,9 +61,55 @@ fn injected(config: &PlayerConfig, which: HwFault) -> bool {
 
 /// Falhas seguidas de cópia da GPU que fazem a câmera passar para software.
 const MAX_TRANSFER_FAILURES: u32 = 10;
-/// Tempo máximo, desde o primeiro pacote de vídeo, para o decodificador de
-/// hardware entregar o primeiro quadro antes de passar para software.
+/// Tempo máximo, desde o primeiro quadro-chave aceito pelo decodificador,
+/// para o hardware entregar o primeiro quadro antes de passar para software.
+/// Conta a partir do quadro-chave, e não do primeiro pacote, porque antes
+/// dele nenhum decodificador entrega quadro: câmeras com GOP longo ("smart
+/// codec") não podem ser confundidas com falha de hardware.
 const HW_FIRST_FRAME_TIMEOUT: Duration = Duration::from_secs(8);
+
+/// Decide quando o caminho de hardware de uma sessão falhou. Não depende de
+/// FFmpeg nem do relógio: o laço da sessão informa os eventos e o instante.
+#[derive(Debug, Default)]
+struct HwWatchdog {
+    /// Primeiro quadro-chave aceito pelo decodificador.
+    keyframe_at: Option<Instant>,
+    /// Algum quadro já foi entregue.
+    frame_seen: bool,
+    /// Cópias da GPU que falharam em sequência.
+    transfer_failures: u32,
+}
+
+impl HwWatchdog {
+    /// O decodificador aceitou um pacote de quadro-chave.
+    fn on_keyframe_sent(&mut self, now: Instant) {
+        self.keyframe_at.get_or_insert(now);
+    }
+
+    /// Um quadro decodificado foi entregue.
+    fn on_frame(&mut self) {
+        self.frame_seen = true;
+    }
+
+    fn on_transfer_ok(&mut self) {
+        self.transfer_failures = 0;
+    }
+
+    fn on_transfer_failed(&mut self) {
+        self.transfer_failures += 1;
+    }
+
+    /// Verdadeiro quando a sessão deve ser reaberta por software.
+    fn should_fall_back(&self, now: Instant) -> bool {
+        if self.transfer_failures >= MAX_TRANSFER_FAILURES {
+            return true;
+        }
+        !self.frame_seen
+            && self
+                .keyframe_at
+                .is_some_and(|t| now.saturating_duration_since(t) > HW_FIRST_FRAME_TIMEOUT)
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct FfmpegPlayer {
@@ -258,17 +304,13 @@ fn session(
     let played = |since: Option<Instant>| since.map(|s| s.elapsed()).unwrap_or_default();
     // Vigilância do hardware: sem quadro dentro do prazo ou com cópias da GPU
     // falhando em sequência, a sessão volta para software.
-    let mut first_packet_at: Option<Instant> = None;
-    let mut transfer_failures = 0u32;
+    let mut watchdog = HwWatchdog::default();
 
     loop {
         if stop.load(Ordering::SeqCst) {
             return SessionEnd::Stopped;
         }
-        if device.is_some()
-            && playing_since.is_none()
-            && first_packet_at.is_some_and(|t| t.elapsed() > HW_FIRST_FRAME_TIMEOUT)
-        {
+        if device.is_some() && watchdog.should_fall_back(Instant::now()) {
             return SessionEnd::HardwareFailed;
         }
         let mut packet = ff::Packet::empty();
@@ -294,11 +336,13 @@ fn session(
         if packet.stream() != stream_index {
             continue;
         }
-        first_packet_at.get_or_insert_with(Instant::now);
         // Pacote corrompido não derruba a sessão: o decodificador se recupera
         // no próximo quadro-chave.
         if decoder.send_packet(&packet).is_err() {
             continue;
+        }
+        if packet.is_key() {
+            watchdog.on_keyframe_sent(Instant::now());
         }
         let mut decoded = ff::frame::Video::empty();
         while decoder.receive_frame(&mut decoded).is_ok() {
@@ -313,13 +357,13 @@ fn session(
                     hw::transfer(&decoded, &mut sw)
                 };
                 if copied.is_err() {
-                    transfer_failures += 1;
-                    if transfer_failures >= MAX_TRANSFER_FAILURES {
+                    watchdog.on_transfer_failed();
+                    if watchdog.should_fall_back(Instant::now()) {
                         return SessionEnd::HardwareFailed;
                     }
                     continue;
                 }
-                transfer_failures = 0;
+                watchdog.on_transfer_ok();
                 sw
             } else {
                 decoded.clone()
@@ -327,6 +371,7 @@ fn session(
             let Some(rgba) = converter.convert(&frame) else {
                 continue;
             };
+            watchdog.on_frame();
             if playing_since.is_none() {
                 playing_since = Some(Instant::now());
                 sink(PlayerEvent::Info(StreamInfo {
@@ -449,6 +494,73 @@ mod tests {
         let t = Instant::now();
         assert!(!sleep_unless_stopped(Duration::from_secs(5), &stop));
         assert!(t.elapsed() < Duration::from_millis(200));
+    }
+
+    // Decisão de fallback, sem FFmpeg nem relógio real.
+
+    const SEG: Duration = Duration::from_secs(1);
+
+    #[test]
+    fn sem_quadro_chave_o_prazo_nao_corre() {
+        // GOP longo: pacotes chegam, mas sem quadro-chave nada é decodificável.
+        let w = HwWatchdog::default();
+        let t0 = Instant::now();
+        assert!(!w.should_fall_back(t0 + 60 * SEG));
+    }
+
+    #[test]
+    fn prazo_conta_a_partir_do_quadro_chave() {
+        let mut w = HwWatchdog::default();
+        let t0 = Instant::now();
+        // Quadro-chave chega 20 s depois do primeiro pacote (GOP longo).
+        let key = t0 + 20 * SEG;
+        w.on_keyframe_sent(key);
+        assert!(!w.should_fall_back(key + HW_FIRST_FRAME_TIMEOUT));
+        assert!(w.should_fall_back(key + HW_FIRST_FRAME_TIMEOUT + SEG));
+    }
+
+    #[test]
+    fn quadros_chave_seguintes_nao_reiniciam_o_prazo() {
+        let mut w = HwWatchdog::default();
+        let t0 = Instant::now();
+        w.on_keyframe_sent(t0);
+        w.on_keyframe_sent(t0 + 5 * SEG);
+        assert!(w.should_fall_back(t0 + HW_FIRST_FRAME_TIMEOUT + SEG));
+    }
+
+    #[test]
+    fn quadro_entregue_cancela_o_prazo() {
+        let mut w = HwWatchdog::default();
+        let t0 = Instant::now();
+        w.on_keyframe_sent(t0);
+        w.on_frame();
+        assert!(!w.should_fall_back(t0 + 60 * SEG));
+    }
+
+    #[test]
+    fn falhas_seguidas_de_copia_caem_para_software() {
+        let mut w = HwWatchdog::default();
+        let now = Instant::now();
+        for _ in 1..MAX_TRANSFER_FAILURES {
+            w.on_transfer_failed();
+            assert!(!w.should_fall_back(now));
+        }
+        w.on_transfer_failed();
+        assert!(w.should_fall_back(now));
+    }
+
+    #[test]
+    fn copia_bem_sucedida_zera_as_falhas() {
+        let mut w = HwWatchdog::default();
+        let now = Instant::now();
+        w.on_frame();
+        for _ in 0..3 {
+            for _ in 1..MAX_TRANSFER_FAILURES {
+                w.on_transfer_failed();
+            }
+            w.on_transfer_ok();
+        }
+        assert!(!w.should_fall_back(now));
     }
 
     // Fallback para software com a câmera falsa (`RTSP_TEST_BASE`, veja
