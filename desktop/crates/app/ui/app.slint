@@ -1,10 +1,554 @@
-// Janela provisória do grupo 1; as telas reais entram no grupo 4.
+// Telas do rtsp-viewer, conforme design/telas.md. Cores, fontes e medidas
+// vêm do Theme gerado a partir de design/tokens.json.
+import { Theme } from "theme.slint";
+import { AppButton, TextField, FormField, Modal } from "components.slint";
+import { AboutSlint } from "std-widgets.slint";
+
+export struct CameraRow {
+    id: string,
+    name: string,
+    address: string,
+}
+
+export enum Page { list, form, viewer, about }
+
+export enum ViewState { connecting, playing, reconnecting, failed }
+
 export component AppWindow inherits Window {
     title: "rtsp-viewer";
-    preferred-width: 960px;
-    preferred-height: 600px;
+    preferred-width: 1024px;
+    preferred-height: 640px;
+    min-width: 480px;
+    min-height: 360px;
+    background: Theme.color-background;
+    default-font-size: Theme.font-size-body;
 
-    Text {
-        text: "rtsp-viewer";
+    in-out property <Page> page: Page.list;
+    in property <string> version;
+
+    // Lista
+    in property <[CameraRow]> cameras;
+    in-out property <int> selected-index: 0;
+    in-out property <string> banner;
+    in-out property <string> confirm-remove-id;
+    in property <string> confirm-remove-name;
+
+    // Formulário
+    in property <string> form-title;
+    in property <bool> form-editing;
+    in-out property <string> form-name;
+    in-out property <string> form-url;
+    in-out property <string> form-user;
+    in-out property <string> form-password;
+    in property <string> name-error;
+    in property <string> url-error;
+    in property <string> form-error;
+    in property <bool> vault-available: true;
+
+    // Visualização
+    in property <string> viewer-name;
+    in property <image> video-frame;
+    in property <ViewState> view-state: ViewState.connecting;
+    in property <string> view-message;
+    in property <string> info-text;
+    in-out property <bool> show-info;
+    in property <bool> fullscreen;
+    in-out property <bool> password-prompt;
+    in property <string> password-user;
+    in-out property <string> prompt-password;
+
+    callback add-camera();
+    callback edit-camera(string);
+    callback request-remove(string);
+    callback confirm-remove();
+    callback open-camera(string);
+    callback save-form();
+    callback cancel-form();
+    callback back-to-list();
+    callback toggle-fullscreen();
+    callback retry();
+    callback submit-password();
+    callback cancel-password();
+    callback show-about();
+    callback escape-pressed();
+
+    /// Devolve o foco de teclado aos atalhos globais (chamado após trocar de tela).
+    public function focus-main() {
+        keys.focus();
+    }
+
+    keys := FocusScope {
+        width: parent.width;
+        height: parent.height;
+        key-pressed(event) => {
+            if (event.text == Key.Escape) {
+                root.escape-pressed();
+                return accept;
+            }
+            if (root.page == Page.viewer && event.text == Key.F11) {
+                root.toggle-fullscreen();
+                return accept;
+            }
+            if (root.page == Page.list && root.confirm-remove-id == "" && root.cameras.length > 0) {
+                if (event.text == Key.DownArrow) {
+                    root.selected-index = Math.min(root.selected-index + 1, root.cameras.length - 1);
+                    return accept;
+                }
+                if (event.text == Key.UpArrow) {
+                    root.selected-index = Math.max(root.selected-index - 1, 0);
+                    return accept;
+                }
+                if (event.text == Key.Return) {
+                    root.open-camera(root.cameras[root.selected-index].id);
+                    return accept;
+                }
+            }
+            reject
+        }
+
+        // ------------------------------------------------------------ lista
+        if root.page == Page.list: VerticalLayout {
+            width: parent.width;
+            height: parent.height;
+            Rectangle {
+                height: Theme.size-toolbar-height;
+                background: Theme.color-surface;
+                HorizontalLayout {
+                    padding-left: Theme.space-l;
+                    padding-right: Theme.space-l;
+                    padding-top: (Theme.size-toolbar-height - Theme.size-control-height) / 2;
+                    padding-bottom: self.padding-top;
+                    spacing: Theme.space-s;
+                    Text {
+                        text: "Câmeras";
+                        color: Theme.color-text;
+                        font-size: Theme.font-size-title;
+                        font-weight: Theme.font-weight-bold;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    AppButton {
+                        text: "Sobre";
+                        subtle: true;
+                        clicked => {
+                            root.show-about();
+                        }
+                    }
+                    AppButton {
+                        text: "Adicionar câmera";
+                        primary: true;
+                        clicked => {
+                            root.add-camera();
+                        }
+                    }
+                }
+            }
+
+            if root.banner != "": Rectangle {
+                background: Theme.color-surface-raised;
+                border-width: 1px;
+                border-color: Theme.color-warning;
+                HorizontalLayout {
+                    padding: Theme.space-m;
+                    spacing: Theme.space-m;
+                    Text {
+                        text: root.banner;
+                        color: Theme.color-warning;
+                        wrap: word-wrap;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    AppButton {
+                        text: "Fechar";
+                        subtle: true;
+                        clicked => {
+                            root.banner = "";
+                        }
+                    }
+                }
+            }
+
+            if root.cameras.length == 0: VerticalLayout {
+                alignment: center;
+                spacing: Theme.space-l;
+                Text {
+                    text: "Nenhuma câmera cadastrada.";
+                    color: Theme.color-text-muted;
+                    font-size: Theme.font-size-title;
+                    horizontal-alignment: center;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    AppButton {
+                        text: "Adicionar câmera";
+                        primary: true;
+                        clicked => {
+                            root.add-camera();
+                        }
+                    }
+                }
+            }
+
+            if root.cameras.length > 0: Flickable {
+                viewport-height: rows.preferred-height;
+                rows := VerticalLayout {
+                    width: parent.width;
+                    for camera[i] in root.cameras: Rectangle {
+                        height: Theme.size-list-item-height;
+                        background: (row-touch.has-hover || i == root.selected-index) ? Theme.color-surface-hover : transparent;
+                        row-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.selected-index = i;
+                                root.open-camera(camera.id);
+                            }
+                        }
+                        HorizontalLayout {
+                            padding-left: Theme.space-l;
+                            padding-right: Theme.space-l;
+                            padding-top: (Theme.size-list-item-height - Theme.size-control-height) / 2;
+                            padding-bottom: self.padding-top;
+                            spacing: Theme.space-s;
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: camera.name;
+                                    color: Theme.color-text;
+                                    font-weight: Theme.font-weight-bold;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: camera.address;
+                                    color: Theme.color-text-muted;
+                                    font-size: Theme.font-size-small;
+                                    overflow: elide;
+                                }
+                            }
+                            AppButton {
+                                text: "Editar";
+                                subtle: true;
+                                clicked => {
+                                    root.edit-camera(camera.id);
+                                }
+                            }
+                            AppButton {
+                                text: "Remover";
+                                subtle: true;
+                                clicked => {
+                                    root.request-remove(camera.id);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.page == Page.list && root.confirm-remove-id != "": Modal {
+            width: parent.width;
+            height: parent.height;
+            Text {
+                text: "Remover " + root.confirm-remove-name + "?";
+                color: Theme.color-text;
+                font-size: Theme.font-size-title;
+                font-weight: Theme.font-weight-bold;
+                wrap: word-wrap;
+            }
+            Text {
+                text: "A câmera e a senha salva serão apagadas.";
+                color: Theme.color-text-muted;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                alignment: end;
+                spacing: Theme.space-s;
+                AppButton {
+                    text: "Cancelar";
+                    clicked => {
+                        root.confirm-remove-id = "";
+                    }
+                }
+                AppButton {
+                    text: "Remover";
+                    danger: true;
+                    clicked => {
+                        root.confirm-remove();
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ formulário
+        if root.page == Page.form: VerticalLayout {
+            width: parent.width;
+            height: parent.height;
+            alignment: center;
+            padding: Theme.space-xl;
+            HorizontalLayout {
+                alignment: center;
+                VerticalLayout {
+                    width: Math.min(Theme.size-form-width, root.width - 2 * Theme.space-xl);
+                    spacing: Theme.space-m;
+                    Text {
+                        text: root.form-title;
+                        color: Theme.color-text;
+                        font-size: Theme.font-size-display;
+                        font-weight: Theme.font-weight-bold;
+                    }
+                    FormField {
+                        label: "Nome";
+                        error: root.name-error;
+                        TextField {
+                            text <=> root.form-name;
+                            has-error: root.name-error != "";
+                            accepted => {
+                                root.save-form();
+                            }
+                        }
+                    }
+                    FormField {
+                        label: "Endereço RTSP";
+                        error: root.url-error;
+                        TextField {
+                            text <=> root.form-url;
+                            placeholder: "rtsp://192.168.0.10:554/stream1";
+                            has-error: root.url-error != "";
+                            accepted => {
+                                root.save-form();
+                            }
+                        }
+                    }
+                    FormField {
+                        label: "Usuário (opcional)";
+                        TextField {
+                            text <=> root.form-user;
+                            accepted => {
+                                root.save-form();
+                            }
+                        }
+                    }
+                    FormField {
+                        label: "Senha (opcional)";
+                        hint: root.form-editing ? "Deixe vazio para manter a senha atual" : "";
+                        TextField {
+                            text <=> root.form-password;
+                            password: true;
+                            accepted => {
+                                root.save-form();
+                            }
+                        }
+                    }
+                    if !root.vault-available: Text {
+                        text: "Este sistema não tem cofre de senhas: a senha será lembrada só até fechar o app.";
+                        color: Theme.color-warning;
+                        font-size: Theme.font-size-small;
+                        wrap: word-wrap;
+                    }
+                    if root.form-error != "": Text {
+                        text: root.form-error;
+                        color: Theme.color-danger;
+                        wrap: word-wrap;
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        spacing: Theme.space-s;
+                        AppButton {
+                            text: "Cancelar";
+                            clicked => {
+                                root.cancel-form();
+                            }
+                        }
+                        AppButton {
+                            text: "Salvar";
+                            primary: true;
+                            clicked => {
+                                root.save-form();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ visualização
+        if root.page == Page.viewer: Rectangle {
+            width: parent.width;
+            height: parent.height;
+            background: Theme.color-video-background;
+
+            Image {
+                width: parent.width;
+                height: parent.height;
+                source: root.video-frame;
+                image-fit: contain;
+            }
+
+            TouchArea {
+                double-clicked => {
+                    root.toggle-fullscreen();
+                }
+            }
+
+            if root.view-state != ViewState.playing: Rectangle {
+                width: Math.min(parent.width - 2 * Theme.space-xl, 440px);
+                height: status.preferred-height;
+                background: Theme.color-overlay;
+                border-radius: Theme.radius-m;
+                status := VerticalLayout {
+                    padding: Theme.space-l;
+                    spacing: Theme.space-m;
+                    Text {
+                        text: root.view-message;
+                        color: root.view-state == ViewState.failed ? Theme.color-danger : Theme.color-text;
+                        horizontal-alignment: center;
+                        wrap: word-wrap;
+                    }
+                    if root.view-state == ViewState.failed: HorizontalLayout {
+                        alignment: center;
+                        AppButton {
+                            text: "Tentar de novo";
+                            clicked => {
+                                root.retry();
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !root.fullscreen: Rectangle {
+                x: 0;
+                y: 0;
+                width: parent.width;
+                height: Theme.size-toolbar-height;
+                background: Theme.color-overlay;
+                HorizontalLayout {
+                    padding-left: Theme.space-l;
+                    padding-right: Theme.space-l;
+                    padding-top: (Theme.size-toolbar-height - Theme.size-control-height) / 2;
+                    padding-bottom: self.padding-top;
+                    spacing: Theme.space-s;
+                    AppButton {
+                        text: "Voltar";
+                        subtle: true;
+                        clicked => {
+                            root.back-to-list();
+                        }
+                    }
+                    Text {
+                        text: root.viewer-name;
+                        color: Theme.color-text;
+                        font-size: Theme.font-size-title;
+                        font-weight: Theme.font-weight-bold;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                    }
+                    AppButton {
+                        text: "Informações";
+                        subtle: true;
+                        clicked => {
+                            root.show-info = !root.show-info;
+                        }
+                    }
+                    AppButton {
+                        text: "Tela cheia";
+                        subtle: true;
+                        clicked => {
+                            root.toggle-fullscreen();
+                        }
+                    }
+                }
+            }
+
+            if root.show-info: Rectangle {
+                width: 320px;
+                height: info.preferred-height;
+                x: parent.width - self.width - Theme.space-l;
+                y: Theme.size-toolbar-height + Theme.space-l;
+                background: Theme.color-overlay;
+                border-radius: Theme.radius-m;
+                info := VerticalLayout {
+                    padding: Theme.space-m;
+                    Text {
+                        text: root.info-text;
+                        color: Theme.color-text;
+                        font-size: Theme.font-size-small;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+
+            if root.password-prompt: Modal {
+                width: parent.width;
+                height: parent.height;
+                Text {
+                    text: "Senha de " + root.password-user;
+                    color: Theme.color-text;
+                    font-size: Theme.font-size-title;
+                    font-weight: Theme.font-weight-bold;
+                }
+                TextField {
+                    text <=> root.prompt-password;
+                    password: true;
+                    accepted => {
+                        root.submit-password();
+                    }
+                }
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: Theme.space-s;
+                    AppButton {
+                        text: "Cancelar";
+                        clicked => {
+                            root.cancel-password();
+                        }
+                    }
+                    AppButton {
+                        text: "Conectar";
+                        primary: true;
+                        clicked => {
+                            root.submit-password();
+                        }
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ sobre
+        if root.page == Page.about: VerticalLayout {
+            width: parent.width;
+            height: parent.height;
+            alignment: center;
+            spacing: Theme.space-l;
+            padding: Theme.space-xl;
+            Text {
+                text: "rtsp-viewer " + root.version;
+                color: Theme.color-text;
+                font-size: Theme.font-size-display;
+                font-weight: Theme.font-weight-bold;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: "Client leve para câmeras RTSP.";
+                color: Theme.color-text-muted;
+                horizontal-alignment: center;
+            }
+            HorizontalLayout {
+                alignment: center;
+                AboutSlint {
+                    max-width: 320px;
+                }
+            }
+            HorizontalLayout {
+                alignment: center;
+                AppButton {
+                    text: "Voltar";
+                    clicked => {
+                        root.back-to-list();
+                    }
+                }
+            }
+        }
     }
 }

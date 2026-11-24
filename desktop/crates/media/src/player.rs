@@ -91,6 +91,12 @@ enum SessionEnd {
 }
 
 fn run(request: &StreamRequest, sink: &PlayerSink, stop: &Arc<AtomicBool>, config: &PlayerConfig) {
+    if let Err(e) = crate::init() {
+        sink(PlayerEvent::State(PlayerState::Failed(StreamError::Other(format!(
+            "FFmpeg não inicializou: {e}"
+        )))));
+        return;
+    }
     let mut policy = ReconnectPolicy::new();
     sink(PlayerEvent::State(PlayerState::Connecting));
     loop {

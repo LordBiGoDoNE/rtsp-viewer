@@ -6,10 +6,14 @@ mod player;
 pub use player::{FfmpegPlayer, PlayerConfig};
 
 /// Inicializa o FFmpeg uma vez por processo e reduz o log dele a erros.
+/// Pode ser chamada de qualquer thread, quantas vezes for preciso.
 pub fn init() -> Result<(), ffmpeg_next::Error> {
-    ffmpeg_next::init()?;
-    ffmpeg_next::log::set_level(ffmpeg_next::log::Level::Error);
-    Ok(())
+    static INIT: std::sync::OnceLock<Result<(), ffmpeg_next::Error>> = std::sync::OnceLock::new();
+    *INIT.get_or_init(|| {
+        ffmpeg_next::init()?;
+        ffmpeg_next::log::set_level(ffmpeg_next::log::Level::Error);
+        Ok(())
+    })
 }
 
 /// Prepara a decodificação por hardware em segundo plano (veja
