@@ -33,6 +33,8 @@ fn tokens_atuais_geram_o_tema() {
     assert!(theme.contains("out property <color> color-primary: #3D8BFF;"));
     assert!(theme.contains("out property <length> space-l: 16px;"));
     assert!(theme.contains("out property <int> font-weight-bold: 600;"));
+    assert!(theme.contains("out property <length> size-status-width: 440px;"));
+    assert!(theme.contains("out property <length> size-window-min-height: 360px;"));
 }
 
 #[test]
@@ -61,6 +63,8 @@ fn medida_invalida_falha_com_o_nome_do_token() {
 fn token_obrigatorio_ausente_falha() {
     let err = theme::generate_theme(&without_token("radius", "m")).unwrap_err();
     assert!(err.contains("radius.m"), "{err}");
+    let err = theme::generate_theme(&without_token("size", "info-width")).unwrap_err();
+    assert!(err.contains("size.info-width"), "{err}");
 }
 
 #[test]
@@ -77,6 +81,30 @@ fn json_malformado_falha() {
 /// palavra `transparent` é permitida).
 #[test]
 fn ui_nao_usa_cor_literal() {
+    let violations = ui_lines_matching(has_literal_color);
+    assert!(
+        violations.is_empty(),
+        "cores literais na UI:\n{}",
+        violations.join("\n")
+    );
+}
+
+/// Medidas só pelo `Theme` (spec `design-tokens`: tamanhos de componentes vêm
+/// de design/tokens.json): nenhum `.slint` do app usa comprimento literal
+/// (`440px`, `2phx`, `1cm`…). Única exceção: `border-width: 1px`, o traço fino
+/// de borda, que não é tamanho de componente nem varia com a identidade visual.
+#[test]
+fn ui_nao_usa_medida_literal() {
+    let violations = ui_lines_matching(has_literal_length);
+    assert!(
+        violations.is_empty(),
+        "medidas literais na UI (use Theme.size-*/space-*/radius-*):\n{}",
+        violations.join("\n")
+    );
+}
+
+/// Linhas dos `.slint` do app (`arquivo:linha: texto`) que satisfazem `pred`.
+fn ui_lines_matching(pred: fn(&str) -> bool) -> Vec<String> {
     let ui = Path::new(env!("CARGO_MANIFEST_DIR")).join("ui");
     let mut violations = vec![];
     for entry in std::fs::read_dir(&ui).unwrap() {
@@ -86,16 +114,86 @@ fn ui_nao_usa_cor_literal() {
         }
         let text = std::fs::read_to_string(&path).unwrap();
         for (n, line) in text.lines().enumerate() {
-            if has_literal_color(line) {
+            if pred(line) {
                 violations.push(format!("{}:{}: {}", path.display(), n + 1, line.trim()));
             }
         }
     }
-    assert!(
-        violations.is_empty(),
-        "cores literais na UI:\n{}",
-        violations.join("\n")
-    );
+    violations
+}
+
+/// Unidades de comprimento do Slint.
+const LENGTH_UNITS: &[&str] = &["px", "phx", "cm", "mm", "in", "pt", "rem"];
+
+/// Linha de `.slint` com comprimento literal (número seguido de unidade),
+/// ignorando textos entre aspas, comentários e a exceção `border-width: 1px`.
+fn has_literal_length(line: &str) -> bool {
+    let code = code_only(line);
+    if code.trim() == "border-width: 1px;" {
+        return false;
+    }
+    let bytes = code.as_bytes();
+    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'-';
+    let mut i = 0;
+    while i < bytes.len() {
+        // Número solto: não faz parte de um identificador (`size-2px`), mas
+        // aceita sinal negativo (`-8px`).
+        let starts_number = bytes[i].is_ascii_digit()
+            && match i.checked_sub(1).map(|p| bytes[p]) {
+                None => true,
+                Some(b'-') => i < 2 || !bytes[i - 2].is_ascii_alphanumeric(),
+                Some(p) => !is_ident(p) && p != b'.',
+            };
+        if !starts_number {
+            i += 1;
+            continue;
+        }
+        let mut j = i;
+        while j < bytes.len() && (bytes[j].is_ascii_digit() || bytes[j] == b'.') {
+            j += 1;
+        }
+        let mut k = j;
+        while k < bytes.len() && bytes[k].is_ascii_alphabetic() {
+            k += 1;
+        }
+        if LENGTH_UNITS.contains(&&code[j..k]) {
+            return true;
+        }
+        i = k.max(i + 1);
+    }
+    false
+}
+
+#[test]
+fn detector_de_medida_literal() {
+    for bad in [
+        "width: 320px;",
+        "preferred-width: 1024px;",
+        "width: Math.min(parent.width - 2 * Theme.space-xl, 440px);",
+        "max-width: 320px; // sobre",
+        "height: 2.5phx;",
+        "x: -8px;",
+        "padding: 1cm;",
+        "border-width: 2px;",
+        "border-radius: 1px;",
+        "font-size: 12pt;",
+        "width: 1rem;",
+    ] {
+        assert!(has_literal_length(bad), "deveria detectar: {bad}");
+    }
+    for ok in [
+        "width: Theme.size-info-width;",
+        "border-width: 1px;",
+        "    border-width: 1px;",
+        "width: parent.width - 2 * Theme.space-xl;",
+        "text: \"Janela de 320px\";",
+        "height: Theme.size-control-height; // 36px no token",
+        "in property <bool> size-2px;",
+        "opacity: 0.5;",
+        "z: 1;",
+    ] {
+        assert!(!has_literal_length(ok), "não deveria detectar: {ok}");
+    }
 }
 
 /// Linha de `.slint` com cor literal, ignorando textos entre aspas e comentários.

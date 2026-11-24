@@ -16,10 +16,10 @@ export enum ViewState { connecting, playing, reconnecting, failed }
 
 export component AppWindow inherits Window {
     title: "rtsp-viewer";
-    preferred-width: 1024px;
-    preferred-height: 640px;
-    min-width: 480px;
-    min-height: 360px;
+    preferred-width: Theme.size-window-width;
+    preferred-height: Theme.size-window-height;
+    min-width: Theme.size-window-min-width;
+    min-height: Theme.size-window-min-height;
     background: Theme.color-background;
     default-font-size: Theme.font-size-body;
 
@@ -398,7 +398,7 @@ export component AppWindow inherits Window {
             }
 
             if root.view-state != ViewState.playing: Rectangle {
-                width: Math.min(parent.width - 2 * Theme.space-xl, 440px);
+                width: Math.min(parent.width - 2 * Theme.space-xl, Theme.size-status-width);
                 height: status.preferred-height;
                 background: Theme.color-overlay;
                 border-radius: Theme.radius-m;
@@ -469,7 +469,7 @@ export component AppWindow inherits Window {
             }
 
             if root.show-info: Rectangle {
-                width: 320px;
+                width: Theme.size-info-width;
                 height: info.preferred-height;
                 x: parent.width - self.width - Theme.space-l;
                 y: Theme.size-toolbar-height + Theme.space-l;
@@ -544,7 +544,7 @@ export component AppWindow inherits Window {
             HorizontalLayout {
                 alignment: center;
                 AboutSlint {
-                    max-width: 320px;
+                    max-width: Theme.size-about-width;
                 }
             }
             HorizontalLayout {
