@@ -1,0 +1,39 @@
+# Câmera falsa local para testes do rtsp-viewer.
+# Credenciais abaixo são fictícias e servem só para testar autenticação.
+logLevel: info
+
+rtsp: true
+rtspTransports: [tcp, udp]
+rtspAddress: :8554
+rtmp: false
+hls: false
+webrtc: false
+srt: false
+api: false
+metrics: false
+playback: false
+
+authMethod: internal
+authInternalUsers:
+  # Publicadores da rede do compose e leitura livre dos caminhos abertos.
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: publish
+      - action: read
+        path: h264
+      - action: read
+        path: h265
+  # Caminho protegido: usuário e senha fictícios.
+  - user: teste
+    pass: teste123
+    ips: []
+    permissions:
+      - action: read
+        path: auth
+
+paths:
+  h264:
+  h265:
+  auth:

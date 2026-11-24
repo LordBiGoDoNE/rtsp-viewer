@@ -1,0 +1,128 @@
+# Verificação (build, lint, testes). Não publica nada: pacotes saem só como
+# artefatos do workflow. Deploy/publicação é workflow separado e manual.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, "epic/**", "task/**", "hotfix/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  desktop-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependências do sistema (FFmpeg, clang, Slint)
+        working-directory: .
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config clang libclang-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
+            libfontconfig1-dev libxkbcommon-dev libwayland-dev libx11-dev
+
+      - name: Toolchain Rust (rust-toolchain.toml) e cache
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rust-src-dir: desktop
+          cache-workspaces: desktop
+
+      - name: Formatação
+        run: cargo fmt --all --check
+
+      - name: Lint
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Testes
+        run: cargo test --workspace --locked
+
+      - name: Build release
+        run: cargo build --release --locked
+
+  desktop-windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache do FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: third_party/ffmpeg
+          key: ffmpeg-${{ hashFiles('scripts/fetch-ffmpeg.ps1') }}
+
+      - name: FFmpeg LGPL (versão fixa)
+        working-directory: .
+        run: ./scripts/fetch-ffmpeg.ps1
+
+      - name: Ambiente de build
+        working-directory: .
+        run: |
+          . ./scripts/env.ps1
+          "FFMPEG_DIR=$env:FFMPEG_DIR" >> $env:GITHUB_ENV
+          "LIBCLANG_PATH=$env:LIBCLANG_PATH" >> $env:GITHUB_ENV
+          Join-Path $env:FFMPEG_DIR 'bin' >> $env:GITHUB_PATH
+
+      - name: Toolchain Rust (rust-toolchain.toml) e cache
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rust-src-dir: desktop
+          cache-workspaces: desktop
+
+      - name: Testes
+        run: cargo test --workspace --locked
+
+      - name: Build release
+        run: cargo build --release --locked
+
+  openspec:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: OpenSpec
+        run: npm install -g @fission-ai/openspec@2.1.1
+
+      - name: Validar specs e changes
+        run: openspec validate --all --strict --no-interactive
+
+      - name: Testes do script de checagem
+        run: node --test scripts/check-openspec.test.mjs
+
+      - name: Changes entregues e registro de entregas
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$BASE_REF" = "main" ]; then
+            git fetch --no-tags origin main
+            node scripts/check-openspec.mjs --base origin/main
+          else
+            node scripts/check-openspec.mjs
+          fi

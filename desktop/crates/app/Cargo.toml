@@ -1,0 +1,18 @@
+[package]
+name = "rtsp-viewer"
+description = "Client leve para câmeras RTSP"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rtsp-viewer-core.workspace = true
+rtsp-viewer-media.workspace = true
+slint.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true

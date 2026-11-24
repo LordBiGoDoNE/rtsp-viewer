@@ -14,25 +14,25 @@ CI (grupo 1).
 
 ## 1. Fundação (`task/mvp-desktop-rtsp/fundacao`, base: épica)
 
-- [ ] 1.1 Workspace em `desktop/` com os crates `core`, `media` e `app` vazios,
+- [x] 1.1 Workspace em `desktop/` com os crates `core`, `media` e `app` vazios,
   `rust-toolchain.toml` com versão fixa e perfil release (LTO, `panic = "abort"`,
   `strip`, `codegen-units = 1`). `.gitattributes` com finais de linha.
-- [ ] 1.2 Escolher o binding do FFmpeg (`ffmpeg-next` ou `ffmpeg-the-third`) pelo
+- [x] 1.2 Escolher o binding do FFmpeg (`ffmpeg-next` ou `ffmpeg-the-third`) pelo
   critério de D3 e fixar as versões de Slint e do binding.
-- [ ] 1.3 `scripts/fetch-ffmpeg.ps1`: baixa o build LGPL compartilhado do FFmpeg
+- [x] 1.3 `scripts/fetch-ffmpeg.ps1`: baixa o build LGPL compartilhado do FFmpeg
   com versão e SHA-256 fixos para `third_party/ffmpeg/` e falha se o hash não
   bater.
-- [ ] 1.4 `test-camera/compose.yaml` com MediaMTX e publicadores `ffmpeg`
+- [x] 1.4 `test-camera/compose.yaml` com MediaMTX e publicadores `ffmpeg`
   (H.264, H.265 e caminho com autenticação fictícia), relógio na imagem, e
   instruções em `test-camera/README.md`.
-- [ ] 1.5 Workflow `.github/workflows/ci.yml` com `desktop-linux`,
+- [x] 1.5 Workflow `.github/workflows/ci.yml` com `desktop-linux`,
   `desktop-windows` e `openspec` (D8), sem publicação; script da checagem
   "change entregue fora de `archive/`" e "linha no registro de entregas".
-- [ ] 1.6 ADRs em `docs/adr/`: 0001 stack (Rust/Slint no desktop, Kotlin no
+- [x] 1.6 ADRs em `docs/adr/`: 0001 stack (Rust/Slint no desktop, Kotlin no
   Android, motivo e aprovação do usuário em 2026-11-24), 0002 FFmpeg (binding,
   obtenção, LGPL, ligação dinâmica), 0003 licença do Slint (D7), 0004 tokens de
   design compartilhados.
-- [ ] 1.7 Rodar `cargo build`, `cargo clippy`, `act` (`desktop-linux` e
+- [x] 1.7 Rodar `cargo build`, `cargo clippy`, `act` (`desktop-linux` e
   `openspec`) e registrar que `desktop-windows` não roda no `act`.
 
 ## 2. Núcleo e cadastro (`task/mvp-desktop-rtsp/nucleo`, base: grupo 1)
