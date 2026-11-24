@@ -21,6 +21,9 @@ pub struct PlayerConfig {
     pub hardware_decoding: bool,
     /// Timeout de socket (conexão e leitura).
     pub socket_timeout: Duration,
+    /// Falha de hardware simulada, só para testes.
+    #[cfg(test)]
+    fault: Option<HwFault>,
 }
 
 impl Default for PlayerConfig {
@@ -28,9 +31,39 @@ impl Default for PlayerConfig {
         Self {
             hardware_decoding: true,
             socket_timeout: Duration::from_secs(5),
+            #[cfg(test)]
+            fault: None,
         }
     }
 }
+
+/// Pontos do caminho de hardware em que os testes simulam falha.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HwFault {
+    /// Abertura do decodificador com o dispositivo ligado.
+    Open,
+    /// Cópia do quadro da GPU para a memória.
+    Transfer,
+}
+
+/// Indica se os testes pediram a falha `which`; fora dos testes, nunca.
+fn injected(config: &PlayerConfig, which: HwFault) -> bool {
+    #[cfg(test)]
+    {
+        config.fault == Some(which)
+    }
+    #[cfg(not(test))]
+    {
+        let _ = (config, which);
+        false
+    }
+}
+
+/// Falhas seguidas de cópia da GPU que fazem a câmera passar para software.
+const MAX_TRANSFER_FAILURES: u32 = 10;
+/// Tempo máximo, desde o primeiro pacote de vídeo, para o decodificador de
+/// hardware entregar o primeiro quadro antes de passar para software.
+const HW_FIRST_FRAME_TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Debug, Clone, Default)]
 pub struct FfmpegPlayer {
@@ -88,14 +121,26 @@ enum SessionEnd {
         error: StreamError,
         played_for: Duration,
     },
+    /// O caminho de hardware falhou; a sessão deve ser reaberta por software.
+    HardwareFailed,
 }
 
 fn run(request: &StreamRequest, sink: &PlayerSink, stop: &Arc<AtomicBool>, config: &PlayerConfig) {
     let mut policy = ReconnectPolicy::new();
+    // Decidido por câmera: depois de uma falha de hardware, o resto da
+    // reprodução desta câmera usa software.
+    let mut hardware = config.hardware_decoding;
     sink(PlayerEvent::State(PlayerState::Connecting));
     loop {
-        match session(request, sink, stop, config) {
+        match session(request, sink, stop, config, hardware) {
             SessionEnd::Stopped => break,
+            SessionEnd::HardwareFailed => {
+                if stop.load(Ordering::SeqCst) {
+                    break;
+                }
+                // Reabre na hora: não é falha de rede e só acontece uma vez.
+                hardware = false;
+            }
             SessionEnd::Lost { error, played_for } => {
                 if stop.load(Ordering::SeqCst) {
                     break;
@@ -147,6 +192,7 @@ fn session(
     sink: &PlayerSink,
     stop: &Arc<AtomicBool>,
     config: &PlayerConfig,
+    hardware: bool,
 ) -> SessionEnd {
     let lost = |error| SessionEnd::Lost {
         error,
@@ -177,7 +223,7 @@ fn session(
         Ok(c) => c,
         Err(e) => return lost(StreamError::Other(redact(&e))),
     };
-    let device: Option<HwDevice> = if config.hardware_decoding {
+    let device: Option<HwDevice> = if hardware {
         hw::attach(&mut ctx, codec_id)
     } else {
         None
@@ -188,8 +234,16 @@ fn session(
         ff::codec::threading::Type::Slice,
     ));
     ctx.set_flags(ff::codec::Flags::LOW_DELAY);
-    let mut decoder = match ctx.decoder().video() {
+    let opened = if device.is_some() && injected(config, HwFault::Open) {
+        Err(ff::Error::Bug)
+    } else {
+        ctx.decoder().video()
+    };
+    let mut decoder = match opened {
         Ok(d) => d,
+        // Com o dispositivo ligado, a falha pode ser do hardware: tenta de
+        // novo por software antes de dar o codec como não suportado.
+        Err(_) if device.is_some() => return SessionEnd::HardwareFailed,
         Err(e) => {
             return lost(StreamError::UnsupportedCodec(format!(
                 "{} ({})",
@@ -202,10 +256,20 @@ fn session(
     let mut converter = Converter::default();
     let mut playing_since: Option<Instant> = None;
     let played = |since: Option<Instant>| since.map(|s| s.elapsed()).unwrap_or_default();
+    // Vigilância do hardware: sem quadro dentro do prazo ou com cópias da GPU
+    // falhando em sequência, a sessão volta para software.
+    let mut first_packet_at: Option<Instant> = None;
+    let mut transfer_failures = 0u32;
 
     loop {
         if stop.load(Ordering::SeqCst) {
             return SessionEnd::Stopped;
+        }
+        if device.is_some()
+            && playing_since.is_none()
+            && first_packet_at.is_some_and(|t| t.elapsed() > HW_FIRST_FRAME_TIMEOUT)
+        {
+            return SessionEnd::HardwareFailed;
         }
         let mut packet = ff::Packet::empty();
         match packet.read(&mut input) {
@@ -230,6 +294,7 @@ fn session(
         if packet.stream() != stream_index {
             continue;
         }
+        first_packet_at.get_or_insert_with(Instant::now);
         // Pacote corrompido não derruba a sessão: o decodificador se recupera
         // no próximo quadro-chave.
         if decoder.send_packet(&packet).is_err() {
@@ -242,9 +307,19 @@ fn session(
                 .is_some_and(|d| decoded.format() == d.pix_fmt);
             let frame = if is_hw {
                 let mut sw = ff::frame::Video::empty();
-                if hw::transfer(&decoded, &mut sw).is_err() {
+                let copied = if injected(config, HwFault::Transfer) {
+                    Err(ff::Error::Bug)
+                } else {
+                    hw::transfer(&decoded, &mut sw)
+                };
+                if copied.is_err() {
+                    transfer_failures += 1;
+                    if transfer_failures >= MAX_TRANSFER_FAILURES {
+                        return SessionEnd::HardwareFailed;
+                    }
                     continue;
                 }
+                transfer_failures = 0;
                 sw
             } else {
                 decoded.clone()
@@ -374,5 +449,90 @@ mod tests {
         let t = Instant::now();
         assert!(!sleep_unless_stopped(Duration::from_secs(5), &stop));
         assert!(t.elapsed() < Duration::from_millis(200));
+    }
+
+    // Fallback para software com a câmera falsa (`RTSP_TEST_BASE`, veja
+    // `tests/fake_camera.rs`). Ficam aqui porque a falha simulada só existe
+    // nos testes do crate.
+
+    fn camera_base() -> Option<String> {
+        let base = std::env::var("RTSP_TEST_BASE").ok()?;
+        crate::init().unwrap();
+        hw::warm_up();
+        Some(base.trim_end_matches('/').to_string())
+    }
+
+    /// Reproduz `/h264` e devolve o modo de decodificação informado e os
+    /// eventos de estado vistos até o primeiro quadro.
+    fn decode_mode(base: &str, config: PlayerConfig) -> (DecodeMode, Vec<PlayerState>) {
+        use rtsp_viewer_core::domain::{CameraId, RtspUrl};
+        use std::sync::{Mutex, mpsc};
+
+        let url = RtspUrl::parse(&format!("{base}/h264")).unwrap().url;
+        let request = StreamRequest {
+            camera_id: CameraId::generate(),
+            url: url.with_credentials(None, None),
+            display_url: url.to_string(),
+        };
+        let (tx, rx) = mpsc::channel();
+        let tx = Mutex::new(tx);
+        let mut handle = FfmpegPlayer::new(config).start(
+            request,
+            Box::new(move |e| {
+                let _ = tx.lock().unwrap().send(e);
+            }),
+        );
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let mut states = vec![];
+        let mut info = None;
+        while let Some(left) = deadline.checked_duration_since(Instant::now()) {
+            match rx.recv_timeout(left) {
+                Ok(PlayerEvent::Info(i)) => info = Some(i),
+                Ok(PlayerEvent::State(s)) => states.push(s),
+                Ok(PlayerEvent::Frame(f)) => {
+                    assert_eq!(f.rgba.len(), (f.width * f.height * 4) as usize);
+                    break;
+                }
+                Err(_) => break,
+            }
+        }
+        handle.stop();
+        let info = info.unwrap_or_else(|| panic!("sem vídeo; estados: {states:?}"));
+        (info.decode, states)
+    }
+
+    fn assert_falls_back(fault: HwFault) {
+        let Some(base) = camera_base() else {
+            eprintln!("RTSP_TEST_BASE não definida: teste ignorado");
+            return;
+        };
+        let (normal, _) = decode_mode(&base, PlayerConfig::default());
+        if normal == DecodeMode::Software {
+            eprintln!("sem decodificação por hardware nesta máquina: fallback não exercitado");
+            return;
+        }
+        let config = PlayerConfig {
+            fault: Some(fault),
+            ..Default::default()
+        };
+        let (mode, states) = decode_mode(&base, config);
+        assert_eq!(mode, DecodeMode::Software, "estados: {states:?}");
+        // A troca é transparente: sem erro nem reconexão para o usuário.
+        assert!(
+            states
+                .iter()
+                .all(|s| matches!(s, PlayerState::Connecting | PlayerState::Playing)),
+            "estados: {states:?}"
+        );
+    }
+
+    #[test]
+    fn falha_ao_abrir_decodificador_de_hardware_cai_para_software() {
+        assert_falls_back(HwFault::Open);
+    }
+
+    #[test]
+    fn falhas_seguidas_de_copia_da_gpu_caem_para_software() {
+        assert_falls_back(HwFault::Transfer);
     }
 }
