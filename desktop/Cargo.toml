@@ -17,7 +17,6 @@ slint = "1.19"
 slint-build = "1.19"
 thiserror = "2.0"
 uuid = { version = "1.29", features = ["v4"] }
-log = "0.4"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

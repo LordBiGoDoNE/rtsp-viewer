@@ -56,15 +56,15 @@ CI (grupo 1).
 
 ## 3. Player FFmpeg (`task/mvp-desktop-rtsp/player`, base: grupo 2)
 
-- [ ] 3.1 `media`: `FfmpegPlayer` implementando `StreamPlayer` numa thread
+- [x] 3.1 `media`: `FfmpegPlayer` implementando `StreamPlayer` numa thread
   própria, opções de baixa latência (D2), conversão para RGBA e entrega do
   último quadro.
-- [ ] 3.2 Decodificação por hardware (D3D11VA/VAAPI) com fallback para
+- [x] 3.2 Decodificação por hardware (D3D11VA/VAAPI) com fallback para
   software e indicação do modo em uso.
-- [ ] 3.3 Estados, classificação de erros (autenticação, inacessível, codec não
+- [x] 3.3 Estados, classificação de erros (autenticação, inacessível, codec não
   suportado) e reconexão com backoff (D2).
-- [ ] 3.4 Encerramento em até 1 s com `interrupt_callback` e timeout.
-- [ ] 3.5 Testes de integração contra a câmera falsa: H.264, H.265,
+- [x] 3.4 Encerramento em até 1 s com `interrupt_callback` e timeout.
+- [x] 3.5 Testes de integração contra a câmera falsa: H.264, H.265,
   autenticação recusada, queda e retorno da câmera, encerramento durante
   conexão pendente.
 

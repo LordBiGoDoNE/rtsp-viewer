@@ -17,6 +17,7 @@ docker compose -f test-camera/compose.yaml down
 | `rtsp://localhost:8554/h264` | H.264 1280x720, 25 fps, relógio | nenhuma |
 | `rtsp://localhost:8554/h265` | H.265 1280x720, 25 fps, relógio | nenhuma |
 | `rtsp://localhost:8554/auth` | H.264 640x360, 15 fps | usuário `teste`, senha `teste123` (fictícios) |
+| `rtsp://localhost:8554/queda` | H.264 640x360, 15 fps | nenhuma; usado pelo teste de queda e retorno |
 
 O relógio no canto superior esquerdo mostra a hora **UTC** com milissegundos no
 momento em que o quadro foi gerado. Para medir latência, compare com a hora UTC
