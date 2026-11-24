@@ -102,10 +102,13 @@ consulta (até seis chamadas) e subiu para 10 s para acomodar câmeras lentas
   3 s.
 - Respostas aceitas só se forem ProbeMatch com o `RelatesTo` igual ao
   `MessageID` do probe, até 64 KiB, e de endereço privado ou link-local. O
-  resultado é deduplicado pelo `EndpointReference`.
-- Do ProbeMatch saem os `XAddrs` (só `http`, preferindo o IPv4 de onde veio a
-  resposta) e o nome sugerido, a partir dos scopes `onvif://www.onvif.org/name/`
-  e `hardware/`.
+  resultado é deduplicado pelo `EndpointReference`, com no máximo 256
+  dispositivos; a fila de recepção guarda no máximo 64 respostas e descarta o
+  excedente (ADR 0005).
+- Do ProbeMatch saem os `XAddrs` (só `http` com host IP literal privado,
+  link-local ou loopback e sem `user@`, preferindo o IP de onde veio a
+  resposta; sem nenhum aceito, o ProbeMatch é descartado) e o nome sugerido, a
+  partir dos scopes `onvif://www.onvif.org/name/` e `hardware/`.
 - Câmeras já cadastradas, pelo mesmo host, aparecem como "Já cadastrada".
 - A porta da busca é testável: o destino do probe é injetável, e o simulador
   responde por unicast em loopback nos testes.

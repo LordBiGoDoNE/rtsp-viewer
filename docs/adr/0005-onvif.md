@@ -44,6 +44,19 @@ Requisitos permanentes: leve, simples, sem rede no boot.
     das credenciais para ataque de dicionário offline. A regra também cobre
     firmwares que anunciam `0.0.0.0`, loopback ou o IP interno atrás de NAT.
     `XAddr` que não é `http` ou ilegível: vale o serviço de dispositivo;
+  - na busca, o `XAddr` do ProbeMatch vira o destino das credenciais no
+    cadastro. Só vale `http://` com host IP literal privado, link-local ou
+    loopback (o mesmo critério da origem do datagrama), sem credenciais
+    embutidas (`user@host`); nome DNS, IP público ou `@` na authority são
+    descartados, e o ProbeMatch sem nenhum `XAddr` aceito é ignorado. URL de
+    serviço de dispositivo com `@` na authority, host ou porta ilegíveis é
+    recusada para qualquer chamador. Um host da LAN ainda pode anunciar o IP
+    de outro dispositivo da LAN; isso não desvia as credenciais para fora
+    dela;
+  - a busca enfileira no máximo 64 respostas (as excedentes são descartadas,
+    após uma triagem barata por origem e `MessageID`) e lista no máximo 256
+    dispositivos distintos, para um flood na LAN não consumir memória sem
+    limite;
   - cada consulta tem prazo total (10 s), repartido entre as chamadas dela.
 
 ## Consequências
