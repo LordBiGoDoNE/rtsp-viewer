@@ -89,6 +89,7 @@ impl Controller {
         on!(on_request_remove, |c, id| c.request_remove(&id));
         on!(on_confirm_remove, |c| c.confirm_remove());
         on!(on_open_camera, |c, id| c.open_camera(&id));
+        on!(on_prepare_playback, |c| c.player.prepare());
         on!(on_save_form, |c| c.save_form());
         on!(on_cancel_form, |c| c.show_list());
         on!(on_back_to_list, |c| c.back_to_list());
@@ -504,6 +505,7 @@ mod tests {
         requests: Arc<StdMutex<Vec<String>>>,
         sinks: Arc<StdMutex<Vec<PlayerSink>>>,
         stops: Arc<AtomicU64>,
+        prepares: Arc<AtomicU64>,
     }
 
     impl FakePlayer {
@@ -529,6 +531,10 @@ mod tests {
                 .push(request.url.expose().to_string());
             self.sinks.lock().unwrap().push(sink);
             Box::new(FakeHandle(self.stops.clone()))
+        }
+
+        fn prepare(&self) {
+            self.prepares.fetch_add(1, Ordering::SeqCst);
         }
     }
 
@@ -718,6 +724,40 @@ mod tests {
         w.invoke_escape_pressed();
         assert_eq!(w.get_confirm_remove_id(), "");
         assert_eq!(w.get_cameras().row_count(), 1);
+    }
+
+    /// O dispositivo de hardware não é preparado no boot (custa memória
+    /// ociosa); só quando o usuário aponta para uma câmera (design.md, D3).
+    #[test]
+    fn hardware_so_e_preparado_quando_o_usuario_aponta_para_uma_camera() {
+        let (w, _c, player) = setup();
+        add(&w, "A", "rtsp://h/a", "", "");
+        add(&w, "B", "rtsp://h/b", "", "");
+        assert_eq!(w.get_page(), Page::List);
+        assert_eq!(
+            player.prepares.load(Ordering::SeqCst),
+            0,
+            "boot não prepara"
+        );
+
+        press(&w, slint::platform::Key::DownArrow);
+        assert_eq!(player.prepares.load(Ordering::SeqCst), 1, "setas preparam");
+
+        w.window().set_size(slint::LogicalSize::new(1024., 640.));
+        // Meio da primeira linha, abaixo da barra superior (medidas dos tokens).
+        let tokens: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../design/tokens.json"
+        )))
+        .unwrap();
+        let size = |name: &str| tokens["size"][name].as_f64().unwrap() as f32;
+        let (toolbar, row) = (size("toolbar-height"), size("list-item-height"));
+        w.window()
+            .dispatch_event(slint::platform::WindowEvent::PointerMoved {
+                position: slint::LogicalPosition::new(200., toolbar + row / 2.),
+            });
+        assert_eq!(player.prepares.load(Ordering::SeqCst), 2, "mouse prepara");
+        assert!(player.requests.lock().unwrap().is_empty());
     }
 
     #[test]

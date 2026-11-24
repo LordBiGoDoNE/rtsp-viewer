@@ -62,6 +62,9 @@ export component AppWindow inherits Window {
     callback request-remove(string);
     callback confirm-remove();
     callback open-camera(string);
+    // O usuário apontou para uma câmera (mouse ou setas): o player pode
+    // preparar a decodificação por hardware antes do clique.
+    callback prepare-playback();
     callback save-form();
     callback cancel-form();
     callback back-to-list();
@@ -92,10 +95,12 @@ export component AppWindow inherits Window {
             if (root.page == Page.list && root.confirm-remove-id == "" && root.cameras.length > 0) {
                 if (event.text == Key.DownArrow) {
                     root.selected-index = Math.min(root.selected-index + 1, root.cameras.length - 1);
+                    root.prepare-playback();
                     return accept;
                 }
                 if (event.text == Key.UpArrow) {
                     root.selected-index = Math.max(root.selected-index - 1, 0);
+                    root.prepare-playback();
                     return accept;
                 }
                 if (event.text == Key.Return) {
@@ -205,6 +210,11 @@ export component AppWindow inherits Window {
                         background: (row-touch.has-hover || i == root.selected-index) ? Theme.color-surface-hover : transparent;
                         row-touch := TouchArea {
                             mouse-cursor: pointer;
+                            changed has-hover => {
+                                if (self.has-hover) {
+                                    root.prepare-playback();
+                                }
+                            }
                             clicked => {
                                 root.selected-index = i;
                                 root.open-camera(camera.id);

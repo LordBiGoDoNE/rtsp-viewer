@@ -16,8 +16,10 @@ pub fn init() -> Result<(), ffmpeg_next::Error> {
     })
 }
 
-/// Prepara a decodificação por hardware em segundo plano (veja
-/// `hw::warm_up`). Chamar depois de `init`, fora da thread da UI.
+/// Cria agora o dispositivo de decodificação por hardware (veja
+/// `hw::warm_up`); bloqueia por centenas de ms. Chamar depois de `init`, fora
+/// da thread da UI. O app usa `StreamPlayer::prepare`, que chama isto numa
+/// thread só quando o usuário aponta para uma câmera; os testes chamam direto.
 pub fn warm_up_hardware() {
     hw::warm_up();
 }
