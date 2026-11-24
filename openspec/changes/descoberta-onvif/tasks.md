@@ -2,8 +2,8 @@
 
 Issue: [#12](https://github.com/LordBiGoDoNE/rtsp-viewer/issues/12).
 Épica: `epic/descoberta-onvif`. Spec formalizada em 2026-11-24.
-Implementação: aguardando confirmação de início do usuário. Teste local pelo
-usuário: a definir na confirmação. Merges dependem da aprovação do pacote final.
+Implementação autorizada em 2026-11-24 (grupos 1–5). Teste local pelo usuário:
+sim. Merges dependem da aprovação do pacote final.
 
 Os grupos formam uma cadeia (cada um parte da branch do anterior). Em cada
 grupo: testes do projeto, CI local via `act` e revisão por grupo
