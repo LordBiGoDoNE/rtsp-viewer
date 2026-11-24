@@ -144,7 +144,10 @@ fn parse(bytes: &[u8]) -> Result<Vec<Camera>, String> {
                 }
             };
             let mut camera = Camera::restore(id, name, parsed.url, c.username);
-            camera.change_substream(substream);
+            // Secundário de outro host (arquivo editado à mão) é descartado sem
+            // tratar o arquivo como corrompido: a câmera continua utilizável
+            // pelo principal, e a próxima gravação já sai sem ele.
+            let _ = camera.change_substream(substream);
             Ok(camera)
         })
         .collect()
@@ -339,7 +342,8 @@ mod tests {
             RtspUrl::parse("rtsp://192.168.1.120:554/stream2")
                 .unwrap()
                 .url,
-        ));
+        ))
+        .unwrap();
         repo.save(std::slice::from_ref(&cam)).unwrap();
         let text = fs::read_to_string(repo.path()).unwrap();
         assert!(text.contains("\"substream_url\": \"rtsp://192.168.1.120:554/stream2\""));
@@ -373,6 +377,26 @@ mod tests {
         )
         .unwrap();
         assert!(repo.load().unwrap().warning.is_some());
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn secundario_de_outro_host_no_arquivo_e_descartado_sem_aviso() {
+        let dir = temp_dir();
+        let repo = JsonCameraRepository::new(&dir);
+        fs::write(
+            repo.path(),
+            r#"{"version":1,"cameras":[{"id":"6f1c2a9e-1d55-4d3c-9b6c-0d0b9d7c2f11","name":"A","url":"rtsp://192.168.1.120/s1","substream_url":"rtsp://192.168.1.121/s2"}]}"#,
+        )
+        .unwrap();
+        let loaded = repo.load().unwrap();
+        assert!(loaded.warning.is_none());
+        assert_eq!(loaded.cameras.len(), 1);
+        assert_eq!(
+            loaded.cameras[0].url().to_string(),
+            "rtsp://192.168.1.120/s1"
+        );
+        assert!(loaded.cameras[0].substream().is_none());
         fs::remove_dir_all(dir).ok();
     }
 

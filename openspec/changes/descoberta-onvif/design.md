@@ -133,7 +133,13 @@ usuário escolher um fabricante em vez de consultar.
 ### D6. Modelo e persistência
 
 - `Camera` ganha `substream: Option<RtspUrl>`, alterável por método de
-  intenção. As credenciais são as mesmas do principal.
+  intenção. As credenciais são as mesmas do principal, então o secundário
+  pertence ao mesmo dispositivo: a entidade recusa um secundário com host
+  diferente do principal (erro de campo no formulário). Trocar a URL principal
+  descarta o secundário, a menos que um novo seja informado na mesma edição;
+  ele foi derivado da URL antiga e não há como saber se continua válido.
+- Na leitura do `cameras.json`, um secundário com host diferente do principal
+  (arquivo editado à mão) é descartado, sem marcar o arquivo como corrompido.
 - `cameras.json` ganha o campo opcional `substream_url`. A `version` continua
   1, porque o campo é opcional: arquivos antigos carregam, e versões antigas
   ignoram o campo.

@@ -319,7 +319,8 @@ impl Controller {
                         } else {
                             PasswordInput::Set(Password::new(password))
                         },
-                        // URL completa: o secundário atual é mantido.
+                        // URL completa: o secundário atual é mantido enquanto
+                        // a URL principal não muda (trocá-la o descarta).
                         substream: SubstreamInput::Unchanged,
                     },
                 );
@@ -1802,6 +1803,24 @@ mod tests {
             "rtsp://admin:segredo@192.168.1.120:554/stream1",
             "a senha digitada vai para o cofre"
         );
+    }
+
+    #[test]
+    fn secundario_de_outro_host_e_recusado_no_campo() {
+        let h = harness(Box::new(MemoryCredentialStore::default()));
+        let mut s = streams("192.168.1.120", None);
+        s.sub = Some(RtspUrl::parse("rtsp://10.9.9.9/outro").unwrap().url);
+        h.resolver.returns(Ok(s));
+        save_new(&h, "A", "192.168.1.120", "admin", "x");
+        h.finish(0);
+        assert_eq!(h.w.get_page(), Page::Form);
+        assert_eq!(h.w.get_form_state(), FormState::Editing);
+        assert!(
+            h.w.get_url_error().starts_with("Stream secundário:"),
+            "{}",
+            h.w.get_url_error()
+        );
+        assert_eq!(h.w.get_cameras().row_count(), 0);
     }
 
     #[test]
