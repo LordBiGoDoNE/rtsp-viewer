@@ -11,7 +11,9 @@ exatas são fixadas no grupo 1 com base no estado do dia.
 ## Objetivos
 
 - Janela utilizável em menos de 500 ms, sem esperar rede.
-- Primeira imagem de uma câmera local em menos de 2 s e latência de até 1 s.
+- Primeira imagem de uma câmera local em menos de 2 s, sem contar a espera pelo
+  quadro-chave da câmera (decisão do usuário de 2026-11-24, no teste local), e
+  latência de até 1 s.
 - Uma câmera 1080p H.264/H.265 com CPU baixa, usando hardware quando houver.
 - Núcleo testável sem UI nem FFmpeg, reaproveitável pelas specs seguintes.
 

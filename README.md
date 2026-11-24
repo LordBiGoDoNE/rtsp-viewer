@@ -44,7 +44,7 @@ Máquina de referência: Windows 11 do desenvolvedor, build release do pacote `.
 | --- | --- | --- |
 | Boot até a janela, mediana de 10 execuções a quente, 20 câmeras (`scripts/measure-boot.ps1`) | 335 a 360 ms (máximo 458 ms) | < 500 ms |
 | Memória ociosa (working set / private bytes), sem câmera aberta | 78 MB / 91 MB | |
-| Primeira imagem, câmera falsa local, quadro-chave a cada 1 s | H.264, 25 aberturas: mediana de 0,86 a 1,05 s (mínimo 0,5 s); H.265: até 2,2 s nos piores casos | até 2 s |
+| Primeira imagem, câmera falsa local, quadro-chave a cada 1 s | H.264, 25 aberturas: mediana de 0,86 a 1,05 s (mínimo 0,5 s); H.265: até 2,2 s nos piores casos, incluindo até 1 s de espera pelo quadro-chave | até 2 s, sem contar a espera pelo quadro-chave da câmera |
 | Latência com a câmera falsa (relógio na imagem contra o relógio do sistema) | cerca de 0,1 s | até 1 s |
 | Pacote Windows `.zip` | 59,1 MB compactado (134 MB extraído) | até 30 MB |
 | Pacote Linux `.deb` | ver o artefato do CI (o FFmpeg vem da distribuição) | |

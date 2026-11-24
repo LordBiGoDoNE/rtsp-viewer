@@ -9,7 +9,7 @@ câmera.
 #### Scenario: Abrir câmera disponível
 
 - **WHEN** o usuário abre uma câmera que publica H.264 ou H.265
-- **THEN** o vídeo aparece em até 2 segundos numa rede local
+- **THEN** o vídeo aparece em até 2 segundos numa rede local, sem contar a espera pelo primeiro quadro-chave enviado pela câmera (que depende do intervalo entre quadros-chave configurado nela)
 - **AND** a proporção da imagem é preservada
 
 #### Scenario: Iniciar o app não conecta
