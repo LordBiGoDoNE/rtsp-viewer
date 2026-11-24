@@ -132,8 +132,9 @@ pub enum PlayerEvent {
     Frame(VideoFrame),
 }
 
-/// Recebe os eventos do player, a partir da thread de reprodução.
-pub type PlayerSink = Box<dyn Fn(PlayerEvent) + Send + 'static>;
+/// Recebe os eventos do player, a partir da thread de reprodução. Deve ser
+/// rápido e não bloquear: a decodificação espera por ele.
+pub type PlayerSink = Box<dyn Fn(PlayerEvent) + Send + Sync + 'static>;
 
 /// Reprodução em andamento. Parar (ou descartar o handle) encerra a conexão.
 pub trait PlaybackHandle: Send {

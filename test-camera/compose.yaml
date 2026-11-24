@@ -9,14 +9,63 @@ x-publisher: &publisher
   restart: unless-stopped
   depends_on: [mediamtx]
 
+configs:
+  mediamtx:
+    # Configuração embutida (sem bind mount), para funcionar também quando o
+    # compose roda de dentro de um contêiner, como no act.
+    content: |
+      # Câmera falsa local para testes do rtsp-viewer.
+      # Credenciais abaixo são fictícias e servem só para testar autenticação.
+      logLevel: info
+
+      rtsp: true
+      rtspTransports: [tcp, udp]
+      rtspAddress: :8554
+      rtmp: false
+      hls: false
+      webrtc: false
+      srt: false
+      api: false
+      metrics: false
+      playback: false
+
+      authMethod: internal
+      authInternalUsers:
+        # Publicadores da rede do compose e leitura livre dos caminhos abertos.
+        - user: any
+          pass:
+          ips: []
+          permissions:
+            - action: publish
+            - action: read
+              path: h264
+            - action: read
+              path: h265
+            - action: read
+              path: queda
+        # Caminho protegido: usuário e senha fictícios.
+        - user: teste
+          pass: teste123
+          ips: []
+          permissions:
+            - action: read
+              path: auth
+
+      paths:
+        h264:
+        h265:
+        queda:
+        auth:
+
 services:
   mediamtx:
     image: bluenviron/mediamtx:1.21.4
     restart: unless-stopped
     ports:
       - "8554:8554"
-    volumes:
-      - ./mediamtx.yml:/mediamtx.yml:ro
+    configs:
+      - source: mediamtx
+        target: /mediamtx.yml
 
   pub-h264:
     <<: *publisher
@@ -102,3 +151,31 @@ services:
       - -rtsp_transport
       - tcp
       - rtsp://mediamtx:8554/auth
+
+  # Publicador dedicado ao teste de queda e retorno (o teste para e religa).
+  pub-queda:
+    <<: *publisher
+    command:
+      - -hide_banner
+      - -loglevel
+      - warning
+      - -re
+      - -f
+      - lavfi
+      - -i
+      - testsrc2=size=640x360:rate=15
+      - -c:v
+      - libx264
+      - -preset
+      - ultrafast
+      - -tune
+      - zerolatency
+      - -g
+      - "15"
+      - -pix_fmt
+      - yuv420p
+      - -f
+      - rtsp
+      - -rtsp_transport
+      - tcp
+      - rtsp://mediamtx:8554/queda

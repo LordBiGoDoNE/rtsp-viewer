@@ -49,8 +49,26 @@ jobs:
       - name: Lint
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
-      - name: Testes
+      - name: Câmera falsa (MediaMTX + ffmpeg)
+        working-directory: .
+        run: |
+          docker compose -f test-camera/compose.yaml up -d --wait mediamtx
+          docker compose -f test-camera/compose.yaml up -d
+          echo "RTSP_TEST_COMPOSE=$PWD/test-camera/compose.yaml" >> "$GITHUB_ENV"
+          # No act o job roda num contêiner; a câmera fica no host.
+          if [ -n "$ACT" ]; then
+            echo "RTSP_TEST_BASE=rtsp://host.docker.internal:8554" >> "$GITHUB_ENV"
+          else
+            echo "RTSP_TEST_BASE=rtsp://localhost:8554" >> "$GITHUB_ENV"
+          fi
+
+      - name: Testes (inclusive player contra a câmera falsa)
         run: cargo test --workspace --locked
+
+      - name: Logs da câmera falsa
+        if: failure()
+        working-directory: .
+        run: docker compose -f test-camera/compose.yaml logs --tail 50
 
       - name: Build release
         run: cargo build --release --locked
