@@ -39,3 +39,6 @@ Thumbs.db
 
 # Worktrees de agentes
 .claude/worktrees/
+
+# Pacotes gerados localmente
+dist/

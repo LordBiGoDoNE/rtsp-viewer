@@ -1,0 +1,50 @@
+[package]
+name = "rtsp-viewer"
+description = "Client leve para câmeras RTSP"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rtsp-viewer-core.workspace = true
+rtsp-viewer-media.workspace = true
+slint.workspace = true
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+directories = "6.0"
+keyring-core = "1.1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
+
+[build-dependencies]
+slint-build.workspace = true
+serde_json = "1.0"
+
+[dev-dependencies]
+serde_json = "1.0"
+i-slint-backend-testing = "=1.19.1"
+
+# Pacote .deb (cargo deb -p rtsp-viewer), alvo Ubuntu 24.04. As dependências
+# de runtime (FFmpeg, fontconfig etc.) vêm de dpkg-shlibdeps ($auto).
+[package.metadata.deb]
+name = "rtsp-viewer"
+maintainer = "rtsp-viewer <noreply@users.noreply.github.com>"
+copyright = "rtsp-viewer"
+license-file = ["../../../docs/licencas-terceiros.md", "0"]
+extended-description = "Client leve para câmeras RTSP, com decodificação por hardware (VAAPI) quando disponível."
+section = "video"
+priority = "optional"
+depends = "$auto"
+assets = [
+    ["target/release/rtsp-viewer", "usr/bin/", "755"],
+    ["../../packaging/linux/rtsp-viewer.desktop", "usr/share/applications/", "644"],
+    ["../../../docs/licencas-terceiros.md", "usr/share/doc/rtsp-viewer/", "644"],
+]
