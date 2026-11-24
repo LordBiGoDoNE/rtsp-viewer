@@ -4021,6 +4021,7 @@ dependencies = [
  "keyring-core",
  "rtsp-viewer-core",
  "rtsp-viewer-media",
+ "rtsp-viewer-onvif",
  "serde",
  "serde_json",
  "slint",

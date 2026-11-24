@@ -41,17 +41,17 @@ rede não confiável (grupos 1 e 2), concorrência (grupo 4).
 
 ## 3. Núcleo e cadastro (`task/descoberta-onvif/nucleo`, base: grupo 2)
 
-- [ ] 3.1 `core`: portas `CameraDiscovery` e `StreamResolver`, `DiscoveredCamera`
+- [x] 3.1 `core`: portas `CameraDiscovery` e `StreamResolver`, `DiscoveredCamera`
   e erros tipados (sem ONVIF, autenticação, sem perfis, rede).
-- [ ] 3.2 `core`: fabricantes e caminhos (D5) e endereço da câmera como objeto
+- [x] 3.2 `core`: fabricantes e caminhos (D5) e endereço da câmera como objeto
   de valor (host ou `host:porta`, sem esquema), com testes.
-- [ ] 3.3 `core`: `Camera` com stream secundário e caso de uso de cadastro por
+- [x] 3.3 `core`: `Camera` com stream secundário e caso de uso de cadastro por
   endereço (ONVIF primeiro, fabricante como fallback explícito), com portas
   falsas nos testes.
-- [ ] 3.4 `app/infrastructure`: `substream_url` opcional no `cameras.json`,
+- [x] 3.4 `app/infrastructure`: `substream_url` opcional no `cameras.json`,
   compatível com o arquivo atual; adaptadores das portas usando o crate
   `onvif`.
-- [ ] 3.5 Teste de arquitetura: o `core` não depende de `onvif` nem das crates
+- [x] 3.5 Teste de arquitetura: o `core` não depende de `onvif` nem das crates
   de rede.
 
 ## 4. Interface (`task/descoberta-onvif/interface`, base: grupo 3)

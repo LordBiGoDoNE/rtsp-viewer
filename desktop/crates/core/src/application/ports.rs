@@ -186,3 +186,66 @@ mod tests {
         assert_eq!(format!("{f:?}"), "VideoFrame(2x1)");
     }
 }
+
+// ---------------------------------------------------------------- descoberta
+
+/// Câmera encontrada na rede (WS-Discovery).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscoveredCamera {
+    /// Host da câmera (IP), usado para cadastrar e para "Já cadastrada".
+    pub host: String,
+    /// URL do serviço de dispositivo ONVIF anunciada pela câmera.
+    pub device_url: String,
+    pub suggested_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("{0}")]
+pub struct DiscoveryFailure(pub String);
+
+/// Busca câmeras na rede local. Bloqueia por alguns segundos: chamar fora da
+/// thread da UI.
+pub trait CameraDiscovery: Send + Sync {
+    fn discover(&self) -> Result<Vec<DiscoveredCamera>, DiscoveryFailure>;
+}
+
+/// Onde consultar a câmera.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StreamTarget {
+    /// Endereço digitado (as portas ONVIF usuais são tentadas se não houver).
+    Address(crate::domain::DeviceAddress),
+    /// URL de serviço ONVIF vinda da busca.
+    ServiceUrl(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedStreams {
+    pub main: crate::domain::RtspUrl,
+    pub sub: Option<crate::domain::RtspUrl>,
+    /// Fabricante e modelo, para sugerir o nome.
+    pub suggested_name: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ResolveError {
+    #[error("A câmera não respondeu ao ONVIF.")]
+    NotOnvif,
+    #[error("Usuário ou senha inválidos.")]
+    AuthenticationFailed,
+    #[error("A câmera não informou nenhum perfil de vídeo.")]
+    NoVideoProfiles,
+    #[error("A câmera não respondeu: {0}")]
+    Unreachable(String),
+    #[error("Resposta inesperada da câmera: {0}")]
+    Protocol(String),
+}
+
+/// Obtém da câmera as URLs RTSP (ONVIF). Bloqueia: chamar fora da thread da UI.
+pub trait StreamResolver: Send + Sync {
+    fn resolve(
+        &self,
+        target: &StreamTarget,
+        username: Option<&str>,
+        password: Option<&Password>,
+    ) -> Result<ResolvedStreams, ResolveError>;
+}

@@ -12,6 +12,18 @@ pub struct CameraDraft {
     pub url: String,
     pub username: String,
     pub password: PasswordInput,
+    pub substream: SubstreamInput,
+}
+
+/// O que fazer com o stream secundário ao salvar.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum SubstreamInput {
+    /// Manter o atual (ou nenhum, numa câmera nova).
+    #[default]
+    Unchanged,
+    /// URL RTSP do secundário (credenciais embutidas são descartadas).
+    Set(String),
+    Clear,
 }
 
 /// O que fazer com a senha ao salvar.
@@ -68,6 +80,7 @@ struct ValidDraft {
     url: RtspUrl,
     username: Option<String>,
     password: PasswordInput,
+    substream: Option<Option<RtspUrl>>,
 }
 
 impl CameraCatalog {
@@ -103,7 +116,10 @@ impl CameraCatalog {
 
     pub fn add(&mut self, draft: CameraDraft) -> Result<CameraId, CatalogError> {
         let valid = validate(draft)?;
-        let camera = Camera::new(valid.name, valid.url, valid.username);
+        let mut camera = Camera::new(valid.name, valid.url, valid.username);
+        if let Some(sub) = valid.substream {
+            camera.change_substream(sub);
+        }
         let id = camera.id().clone();
         // Sem usuário, a senha não é usada: não vai para o cofre.
         let password = if camera.requires_credentials() {
@@ -132,6 +148,9 @@ impl CameraCatalog {
         camera.rename(valid.name);
         camera.change_url(valid.url);
         camera.change_username(valid.username);
+        if let Some(sub) = valid.substream {
+            camera.change_substream(sub);
+        }
         // Câmera que passa a não ter usuário não deve manter senha no cofre.
         let password = if camera.requires_credentials() {
             valid.password
@@ -246,7 +265,20 @@ fn validate(draft: CameraDraft) -> Result<ValidDraft, CatalogError> {
             })
         })
         .ok();
-    let (Some(name), Some(parsed)) = (name, parsed) else {
+    let substream = match &draft.substream {
+        SubstreamInput::Unchanged => Some(None),
+        SubstreamInput::Clear => Some(Some(None)),
+        SubstreamInput::Set(s) => RtspUrl::parse(s)
+            .map(|p| Some(Some(p.url)))
+            .map_err(|e| {
+                errors.push(FieldError {
+                    field: Field::Url,
+                    message: format!("Stream secundário: {e}"),
+                })
+            })
+            .ok(),
+    };
+    let (Some(name), Some(parsed), Some(substream)) = (name, parsed, substream) else {
         return Err(CatalogError::Invalid(errors));
     };
     // Credenciais embutidas na URL têm precedência sobre os campos.
@@ -260,6 +292,7 @@ fn validate(draft: CameraDraft) -> Result<ValidDraft, CatalogError> {
         url: parsed.url,
         username,
         password,
+        substream,
     })
 }
 

@@ -68,6 +68,8 @@ pub struct Camera {
     name: CameraName,
     url: RtspUrl,
     username: Option<String>,
+    /// Stream secundário (menor resolução), com as mesmas credenciais.
+    substream: Option<RtspUrl>,
 }
 
 impl Camera {
@@ -82,6 +84,7 @@ impl Camera {
             name,
             url,
             username: normalize_username(username),
+            substream: None,
         }
     }
 
@@ -99,6 +102,14 @@ impl Camera {
 
     pub fn username(&self) -> Option<&str> {
         self.username.as_deref()
+    }
+
+    pub fn substream(&self) -> Option<&RtspUrl> {
+        self.substream.as_ref()
+    }
+
+    pub fn change_substream(&mut self, substream: Option<RtspUrl>) {
+        self.substream = substream;
     }
 
     pub fn rename(&mut self, name: CameraName) {
