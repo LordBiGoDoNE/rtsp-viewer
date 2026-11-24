@@ -1,0 +1,28 @@
+schema: spec-driven
+
+context: |
+  Language: pt-BR
+  All artifacts must be written in pt-BR.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+  Projeto: rtsp-viewer, client leve para câmeras RTSP no Windows, Linux e Android.
+  Objetivos permanentes: leve, simples e de boot rápido. Toda decisão que
+  aumente tempo de inicialização, memória ou tamanho do pacote precisa de
+  justificativa na spec.
+  Stack escolhida pelo usuário em 2026-11-24 (modelo híbrido):
+  - desktop (Windows e Linux) em desktop/: Rust + Slint (UI) + FFmpeg
+    (RTSP, decodificação, gravação), workspace Cargo com os crates core,
+    media, onvif e app;
+  - Android em android/: Kotlin + Jetpack Compose + Media3/ExoPlayer (RTSP),
+    projeto Gradle próprio.
+  Consistência visual: design/tokens.json é a fonte única de cores, tipografia,
+  espaçamentos e componentes; temas do Slint e do Compose são gerados a partir
+  dele. design/telas.md descreve as telas das duas plataformas.
+  Senhas de câmeras são segredos: nunca em texto puro em arquivos de
+  configuração nem em logs.
+  Sequência prevista de specs: mvp-desktop-rtsp, app-android,
+  grade-multi-camera, descoberta-onvif, snapshot-e-gravacao. A sequência não
+  autoriza spec nem implementação.
+  Processo (épicas, tarefas, PRs, issue, autorização, revisão, teste local,
+  hotfix, deploy): regras globais em ~/.claude/rules e AGENTS.md, nessa precedência.
+  Tarefas de cada spec são organizadas em grupos coesos (autorização conforme
+  ~/.claude/rules/planejamento-e-autorizacao.md).

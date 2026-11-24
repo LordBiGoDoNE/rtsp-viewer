@@ -1,0 +1,41 @@
+# Segredos e configuração local
+.env
+.env.*
+!.env.example
+*.local.json
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Rust
+desktop/target/
+**/*.rs.bk
+
+# Android / Gradle
+android/.gradle/
+android/build/
+android/**/build/
+android/local.properties
+android/.idea/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# FFmpeg baixado ou compilado localmente
+third_party/ffmpeg/
+
+# Saídas locais (gravações, snapshots, medições)
+recordings/
+snapshots/
+*.mp4
+*.mkv
+
+# Editores e sistema
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Worktrees de agentes
+.claude/worktrees/
