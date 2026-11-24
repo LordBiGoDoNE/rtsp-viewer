@@ -10,7 +10,11 @@
 //!   --clock-offset <s>   relógio da câmera deslocado em segundos
 //!   --main <url>         URL RTSP do stream principal
 //!   --sub <url>          URL RTSP do stream secundário
+//!   --advertise <ip>     IP anunciado no WS-Discovery (padrão: o primeiro da máquina)
 //! ```
+//!
+//! Também responde ao WS-Discovery (UDP 3702, multicast) em todas as
+//! interfaces, para o app encontrar o simulador com "Procurar câmeras".
 //!
 //! Os valores padrão apontam para a câmera falsa (`test-camera/`).
 
@@ -60,6 +64,40 @@ fn main() {
     println!(
         "Simulador ONVIF em http://{bind}:{}/onvif/device_service (Ctrl+C para sair)",
         sim.port
+    );
+
+    // WS-Discovery em multicast real, em todas as interfaces IPv4 ativas.
+    let ifaces: Vec<std::net::Ipv4Addr> = if_addrs::get_if_addrs()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|i| !i.is_loopback())
+        .filter_map(|i| match i.ip() {
+            std::net::IpAddr::V4(v4) => Some(v4),
+            _ => None,
+        })
+        .collect();
+    let advertise = opt("--advertise").unwrap_or_else(|| {
+        ifaces
+            .first()
+            .map(|ip| ip.to_string())
+            .unwrap_or_else(|| "127.0.0.1".into())
+    });
+    let _responder = simulator::start_discovery_responder(
+        "0.0.0.0:3702",
+        &ifaces,
+        &advertise,
+        vec![simulator::DiscoveryReply::Match {
+            endpoint: "urn:uuid:simulador-rtsp-viewer".into(),
+            xaddr: format!("http://{{ip}}:{}/onvif/device_service", sim.port),
+            scopes:
+                "onvif://www.onvif.org/name/Simulador_ONVIF onvif://www.onvif.org/hardware/SIM-1"
+                    .into(),
+        }],
+    );
+    println!(
+        "WS-Discovery anunciando {advertise}:{} em {} interface(s)",
+        sim.port,
+        ifaces.len()
     );
     loop {
         std::thread::park();

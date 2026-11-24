@@ -31,12 +31,12 @@ rede não confiável (grupos 1 e 2), concorrência (grupo 4).
 
 ## 2. Busca na rede (`task/descoberta-onvif/busca`, base: grupo 1)
 
-- [ ] 2.1 `discovery.rs`: Probe WS-Discovery por interface IPv4 ativa
+- [x] 2.1 `discovery.rs`: Probe WS-Discovery por interface IPv4 ativa
   (`if-addrs` + `socket2`), TTL 1, escuta de 3 s, destino injetável (D4).
-- [ ] 2.2 Validação das respostas: `RelatesTo`, limite de 64 KiB, origem
+- [x] 2.2 Validação das respostas: `RelatesTo`, limite de 64 KiB, origem
   privada ou link-local, deduplicação por `EndpointReference`, `XAddrs` http e
   nome sugerido pelos scopes.
-- [ ] 2.3 Simulador responde ao probe (multicast real e unicast em loopback);
+- [x] 2.3 Simulador responde ao probe (multicast real e unicast em loopback);
   testes com respostas válidas, duplicadas, de outra busca e malformadas.
 
 ## 3. Núcleo e cadastro (`task/descoberta-onvif/nucleo`, base: grupo 2)

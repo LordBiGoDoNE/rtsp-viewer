@@ -438,3 +438,106 @@ fn http_digest_ok(header: &str, cfg: &SimConfig, path: &str) -> bool {
     let ha2 = md5_hex(&format!("POST:{uri}"));
     response == md5_hex(&format!("{ha1}:n0nce-sim:{nc}:{cnonce}:auth:{ha2}"))
 }
+
+// ---------------------------------------------------------------- WS-Discovery
+
+/// Resposta que o respondedor envia para cada Probe recebido.
+#[derive(Debug, Clone)]
+pub enum DiscoveryReply {
+    /// ProbeMatch válido. `{ip}` em `xaddr` vira o endereço anunciado.
+    Match {
+        endpoint: String,
+        xaddr: String,
+        scopes: String,
+    },
+    /// ProbeMatch com `RelatesTo` de outra busca.
+    WrongRelatesTo,
+    /// Datagrama que não é XML.
+    Malformed,
+}
+
+pub struct DiscoveryResponder {
+    pub addr: std::net::SocketAddr,
+    stop: Arc<AtomicBool>,
+}
+
+impl Drop for DiscoveryResponder {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+    }
+}
+
+fn probe_match(relates: &str, endpoint: &str, xaddr: &str, scopes: &str) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?><SOAP-ENV:Envelope xmlns:SOAP-ENV="http://www.w3.org/2003/05/soap-envelope" xmlns:wsa="http://schemas.xmlsoap.org/ws/2004/08/addressing" xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" xmlns:dn="http://www.onvif.org/ver10/network/wsdl"><SOAP-ENV:Header><wsa:MessageID>uuid:resp-{n}</wsa:MessageID><wsa:RelatesTo>{relates}</wsa:RelatesTo><wsa:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/ProbeMatches</wsa:Action></SOAP-ENV:Header><SOAP-ENV:Body><d:ProbeMatches><d:ProbeMatch><wsa:EndpointReference><wsa:Address>{endpoint}</wsa:Address></wsa:EndpointReference><d:Types>dn:NetworkVideoTransmitter</d:Types><d:Scopes>{scopes}</d:Scopes><d:XAddrs>{xaddr}</d:XAddrs><d:MetadataVersion>1</d:MetadataVersion></d:ProbeMatch></d:ProbeMatches></SOAP-ENV:Body></SOAP-ENV:Envelope>"#,
+        n = now(),
+        relates = xml::escape(relates),
+        endpoint = xml::escape(endpoint),
+        xaddr = xml::escape(xaddr),
+        scopes = xml::escape(scopes),
+    )
+}
+
+/// Respondedor WS-Discovery. Com `multicast_ifaces` vazio, escuta só em
+/// `bind` (unicast, para testes); senão, entra no grupo 239.255.255.250 em
+/// cada interface dada (para o teste de ponta a ponta).
+pub fn start_discovery_responder(
+    bind: &str,
+    multicast_ifaces: &[std::net::Ipv4Addr],
+    advertise_ip: &str,
+    replies: Vec<DiscoveryReply>,
+) -> DiscoveryResponder {
+    use socket2::{Domain, Protocol, Socket, Type};
+    let addr: std::net::SocketAddr = bind.parse().expect("endereço do respondedor");
+    let s = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
+    s.set_reuse_address(true).unwrap();
+    s.bind(&addr.into())
+        .expect("bind do respondedor WS-Discovery");
+    for iface in multicast_ifaces {
+        let _ = s.join_multicast_v4(&std::net::Ipv4Addr::new(239, 255, 255, 250), iface);
+    }
+    s.set_read_timeout(Some(std::time::Duration::from_millis(200)))
+        .unwrap();
+    let sock: std::net::UdpSocket = s.into();
+    let local = sock.local_addr().unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let st = stop.clone();
+    let advertise = advertise_ip.to_string();
+    thread::spawn(move || {
+        let mut buf = vec![0u8; 65536];
+        while !st.load(Ordering::SeqCst) {
+            let Ok((n, from)) = sock.recv_from(&mut buf) else {
+                continue;
+            };
+            let Ok(text) = std::str::from_utf8(&buf[..n]) else {
+                continue;
+            };
+            let Ok(doc) = xml::parse(text) else { continue };
+            if doc.find("Probe").is_none() {
+                continue;
+            }
+            let id = doc
+                .path(&["Header", "MessageID"])
+                .map(|m| m.text_trimmed().to_string())
+                .unwrap_or_default();
+            for r in &replies {
+                let datagram = match r {
+                    DiscoveryReply::Match {
+                        endpoint,
+                        xaddr,
+                        scopes,
+                    } => probe_match(&id, endpoint, &xaddr.replace("{ip}", &advertise), scopes),
+                    DiscoveryReply::WrongRelatesTo => probe_match(
+                        "uuid:outra-busca",
+                        "urn:uuid:intrusa",
+                        "http://10.0.0.66/onvif/device_service",
+                        "",
+                    ),
+                    DiscoveryReply::Malformed => "isto não é XML <".to_string(),
+                };
+                let _ = sock.send_to(datagram.as_bytes(), from);
+            }
+        }
+    });
+    DiscoveryResponder { addr: local, stop }
+}
