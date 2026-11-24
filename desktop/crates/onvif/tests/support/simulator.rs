@@ -46,6 +46,11 @@ pub struct SimConfig {
     pub profiles: Vec<SimProfile>,
     /// Anuncia o serviço de mídia com host 0.0.0.0 (firmware com NAT errado).
     pub media_host_zero: bool,
+    /// Host anunciado no XAddr de mídia (outro IP: NAT ou câmera maliciosa).
+    /// Tem precedência sobre `media_host_zero`.
+    pub media_host: Option<String>,
+    /// Atraso antes de cada resposta, para testar o prazo total da consulta.
+    pub response_delay: std::time::Duration,
     /// Responde HTML em vez de SOAP (não é câmera ONVIF).
     pub not_onvif: bool,
     /// Tamanho de uma resposta artificialmente grande, para testar limites.
@@ -76,6 +81,8 @@ impl Default for SimConfig {
                 },
             ],
             media_host_zero: false,
+            media_host: None,
+            response_delay: std::time::Duration::ZERO,
             not_onvif: false,
             oversized_profiles: false,
         }
@@ -225,6 +232,9 @@ fn handle(
 ) -> std::io::Result<()> {
     let (req, raw) = read_request(&mut stream)?;
     log.lock().unwrap().push(raw);
+    if !cfg.response_delay.is_zero() {
+        thread::sleep(cfg.response_delay);
+    }
     const SOAP: &str = "application/soap+xml; charset=utf-8";
 
     if cfg.not_onvif {
@@ -280,7 +290,9 @@ fn handle(
         }
     }
 
-    let media_host = if cfg.media_host_zero {
+    let media_host = if let Some(h) = &cfg.media_host {
+        h.clone()
+    } else if cfg.media_host_zero {
         "0.0.0.0".to_string()
     } else {
         "127.0.0.1".to_string()

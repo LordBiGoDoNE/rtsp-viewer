@@ -1,9 +1,10 @@
 //! Cliente ONVIF (design D1–D3): localiza o serviço do dispositivo, mede o
 //! relógio da câmera e obtém as URLs RTSP dos streams principal e secundário.
 
+use std::net::Ipv4Addr;
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use rtsp_viewer_core::domain::{RtspUrl, redact_credentials};
 
@@ -32,7 +33,10 @@ pub enum OnvifError {
 
 #[derive(Debug, Clone)]
 pub struct OnvifConfig {
+    /// Timeout de conexão de cada chamada.
     pub connect_timeout: Duration,
+    /// Prazo total de uma consulta inteira (`locate` ou `fetch_streams`, com
+    /// todas as chamadas dela), não de cada chamada (design D1).
     pub total_timeout: Duration,
     /// Portas tentadas quando o endereço não traz porta.
     pub probe_ports: Vec<u16>,
@@ -43,7 +47,7 @@ impl Default for OnvifConfig {
     fn default() -> Self {
         Self {
             connect_timeout: Duration::from_secs(2),
-            total_timeout: Duration::from_secs(5),
+            total_timeout: Duration::from_secs(10),
             probe_ports: DEFAULT_PORTS.to_vec(),
             probe_connect_timeout: Duration::from_secs(1),
         }
@@ -132,12 +136,14 @@ struct Session<'a> {
     creds: Option<&'a Credentials>,
     clock: ClockOffset,
     mode: AuthMode,
+    /// Fim do prazo total da consulta.
+    deadline: Instant,
 }
 
 impl OnvifClient {
     pub fn new(config: OnvifConfig) -> Self {
-        let agent = build_agent(config.connect_timeout, config.total_timeout);
-        let probe_agent = build_agent(config.probe_connect_timeout, config.total_timeout);
+        let agent = build_agent(config.connect_timeout);
+        let probe_agent = build_agent(config.probe_connect_timeout);
         Self {
             agent,
             probe_agent,
@@ -153,19 +159,22 @@ impl OnvifClient {
             Some(p) => vec![p],
             None => self.config.probe_ports.clone(),
         };
+        let deadline = Instant::now() + self.config.total_timeout;
         let (tx, rx) = mpsc::channel();
         for p in ports.iter().copied() {
             let tx = tx.clone();
             let agent = self.probe_agent.clone();
             let device = DeviceService::for_host(host, p);
             thread::spawn(move || {
-                let ok = system_time(&agent, &device.url).is_ok();
+                let ok = system_time(&agent, &device.url, deadline).is_ok();
                 let _ = tx.send((device, ok));
             });
         }
         drop(tx);
         let mut answered = 0;
-        while let Ok((device, ok)) = rx.recv_timeout(self.config.total_timeout) {
+        while let Ok((device, ok)) =
+            rx.recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        {
             answered += 1;
             if ok {
                 return Ok(device);
@@ -183,15 +192,18 @@ impl OnvifClient {
         device: &DeviceService,
         creds: Option<&Credentials>,
     ) -> Result<StreamSet, OnvifError> {
+        // Prazo total da consulta inteira; cada chamada recebe o restante.
+        let deadline = Instant::now() + self.config.total_timeout;
         // Relógio da câmera, sem autenticação; falha aqui não impede a
         // consulta (a câmera pode estar com a hora certa).
-        let clock = system_time(&self.agent, &device.url)
+        let clock = system_time(&self.agent, &device.url, deadline)
             .map(|camera| ClockOffset::between(camera, now()))
             .unwrap_or_default();
         let mut session = Session {
             creds,
             clock,
             mode: AuthMode::WsSecurity,
+            deadline,
         };
 
         let (manufacturer, model) =
@@ -216,7 +228,7 @@ impl OnvifClient {
                 .find("Media")
                 .and_then(|m| m.child("XAddr"))
                 .map(|x| x.text_trimmed().to_string())
-                .and_then(|u| fix_service_url(&u, &device.host))
+                .and_then(|u| media_service_url(&u, &device.host))
                 .unwrap_or_else(|| device.url.clone()),
             Err(OnvifError::AuthenticationFailed) => return Err(OnvifError::AuthenticationFailed),
             Err(_) => device.url.clone(),
@@ -293,7 +305,13 @@ impl OnvifClient {
                 }
             };
             let envelope = soap::envelope(header.as_deref(), body);
-            let reply = post(&self.agent, url, &envelope, authorization.as_deref())?;
+            let reply = post(
+                &self.agent,
+                url,
+                &envelope,
+                authorization.as_deref(),
+                session.deadline,
+            )?;
 
             if reply.status == 401 {
                 let challenge = reply
@@ -322,10 +340,11 @@ impl OnvifClient {
     }
 }
 
-fn build_agent(connect: Duration, total: Duration) -> ureq::Agent {
+/// O timeout total não fica no agente: cada chamada recebe o que resta do
+/// prazo da consulta (ver `post`).
+fn build_agent(connect: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_connect(Some(connect))
-        .timeout_global(Some(total))
         .http_status_as_error(false)
         .max_redirects(0)
         .build()
@@ -337,9 +356,17 @@ fn post(
     url: &str,
     envelope: &str,
     authorization: Option<&str>,
+    deadline: Instant,
 ) -> Result<HttpReply, OnvifError> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        return Err(OnvifError::Unreachable("tempo esgotado".into()));
+    }
     let mut req = agent
         .post(url)
+        .config()
+        .timeout_global(Some(remaining))
+        .build()
         .header("Content-Type", "application/soap+xml; charset=utf-8");
     if let Some(a) = authorization {
         req = req.header("Authorization", a);
@@ -365,7 +392,7 @@ fn post(
             ureq::Error::BodyExceedsLimit(_) => {
                 OnvifError::Protocol("resposta grande demais".into())
             }
-            other => OnvifError::Unreachable(other.to_string()),
+            other => OnvifError::Unreachable(redact_credentials(&other.to_string())),
         })?;
     Ok(HttpReply {
         status,
@@ -375,12 +402,17 @@ fn post(
 }
 
 /// `GetSystemDateAndTime` sem autenticação → hora UTC da câmera.
-fn system_time(agent: &ureq::Agent, url: &str) -> Result<UnixSeconds, OnvifError> {
+fn system_time(
+    agent: &ureq::Agent,
+    url: &str,
+    deadline: Instant,
+) -> Result<UnixSeconds, OnvifError> {
     let reply = post(
         agent,
         url,
         &soap::envelope(None, &soap::get_system_date_and_time()),
         None,
+        deadline,
     )?;
     let Some(Reply::Body(body)) = soap::read_reply(&reply.body) else {
         return Err(OnvifError::NotOnvif);
@@ -473,8 +505,14 @@ fn choose(profiles: &[ProfileInfo]) -> Option<(&ProfileInfo, Option<&ProfileInfo
     Some((main, (area(sub) < area(main)).then_some(sub)))
 }
 
+/// Host que não identifica a câmera na rede: não especificado, loopback
+/// (127.0.0.0/8, `::1`) ou `localhost`.
 fn is_bad_host(host: &str) -> bool {
-    matches!(host, "0.0.0.0" | "localhost" | "127.0.0.1" | "::" | "::1")
+    if host.eq_ignore_ascii_case("localhost") || matches!(host, "::" | "::1") {
+        return true;
+    }
+    host.parse::<Ipv4Addr>()
+        .is_ok_and(|ip| ip.is_unspecified() || ip.is_loopback())
 }
 
 /// Valida a URL RTSP devolvida, descarta credenciais embutidas e troca host
@@ -502,23 +540,42 @@ fn sanitize_stream_url(uri: &str, camera_host: &str) -> Result<RtspUrl, OnvifErr
         .map_err(|e| OnvifError::Protocol(format!("URL RTSP inválida ({e})")))
 }
 
-/// URL de serviço (media) com host inválido → host da câmera.
-fn fix_service_url(url: &str, camera_host: &str) -> Option<String> {
-    let svc = DeviceService::from_url(url)?;
-    if !is_bad_host(&svc.host) {
-        return Some(url.to_string());
-    }
-    let old = if svc.host.contains(':') {
-        format!("[{}]", svc.host)
-    } else {
-        svc.host
+/// Endereço do serviço de mídia a partir do `XAddr` anunciado pela câmera.
+///
+/// O `XAddr` é entrada de rede não confiável (ADR 0005): as chamadas seguintes
+/// levam o digest das credenciais, então nunca vão a outro host. A URL usada é
+/// sempre `http://<host da câmera>:<porta do XAddr><caminho do XAddr>`, seja o
+/// host anunciado igual, inválido (`0.0.0.0`, loopback) ou outro IP (firmware
+/// atrás de NAT que anuncia o IP interno). Assim a câmera só escolhe porta e
+/// caminho no próprio host, a que as credenciais já são enviadas. `XAddr` que
+/// não é `http` ou que não se consegue ler → `None` (vale o serviço de
+/// dispositivo).
+fn media_service_url(xaddr: &str, camera_host: &str) -> Option<String> {
+    let rest = xaddr.strip_prefix("http://")?;
+    let (authority, path) = match rest.find(['/', '?', '#']) {
+        Some(i) => (&rest[..i], &rest[i..]),
+        None => (rest, "/"),
     };
-    let new = if camera_host.contains(':') {
+    // Descarta credenciais embutidas (`user:pass@`).
+    let hostport = authority.rsplit('@').next()?;
+    let port_text = if let Some(v6) = hostport.strip_prefix('[') {
+        v6.split_once(']')?.1.strip_prefix(':')
+    } else {
+        hostport.split_once(':').map(|(_, p)| p)
+    };
+    let port: u16 = match port_text {
+        Some(p) => p.parse().ok().filter(|p| *p != 0)?,
+        None => 80,
+    };
+    if !path.starts_with('/') || path.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return None;
+    }
+    let host = if camera_host.contains(':') {
         format!("[{camera_host}]")
     } else {
         camera_host.to_string()
     };
-    Some(url.replacen(&format!("//{old}"), &format!("//{new}"), 1))
+    Some(format!("http://{host}:{port}{path}"))
 }
 
 #[cfg(test)]
@@ -619,9 +676,61 @@ mod tests {
             path_of("http://h:80/onvif/media_service"),
             "/onvif/media_service"
         );
+    }
+
+    #[test]
+    fn servico_de_midia_fica_sempre_no_host_da_camera() {
+        let m = |x: &str, h: &str| media_service_url(x, h);
         assert_eq!(
-            fix_service_url("http://0.0.0.0:8000/onvif/media", "10.0.0.5").as_deref(),
+            m("http://0.0.0.0:8000/onvif/media", "10.0.0.5").as_deref(),
             Some("http://10.0.0.5:8000/onvif/media")
         );
+        // Mesmo host: nada muda.
+        assert_eq!(
+            m("http://10.0.0.5:2020/onvif/service", "10.0.0.5").as_deref(),
+            Some("http://10.0.0.5:2020/onvif/service")
+        );
+        // Outro host (NAT ou câmera maliciosa): host da câmera, porta e
+        // caminho do XAddr.
+        assert_eq!(
+            m("http://203.0.113.7:8080/onvif/Media", "192.168.1.120").as_deref(),
+            Some("http://192.168.1.120:8080/onvif/Media")
+        );
+        assert_eq!(
+            m("http://evil.example/x?y=1", "192.168.1.120").as_deref(),
+            Some("http://192.168.1.120:80/x?y=1")
+        );
+        assert_eq!(
+            m("http://u:p@[2001:db8::9]:81/media", "fe80::1").as_deref(),
+            Some("http://[fe80::1]:81/media")
+        );
+        assert_eq!(
+            m("http://attacker.lan", "10.0.0.5").as_deref(),
+            Some("http://10.0.0.5:80/")
+        );
+        // Não http, porta inválida ou caminho estranho: vale o dispositivo.
+        assert_eq!(m("https://10.0.0.5/onvif/media", "10.0.0.5"), None);
+        assert_eq!(m("http://10.0.0.5:99999/m", "10.0.0.5"), None);
+        assert_eq!(m("http://10.0.0.5:0/m", "10.0.0.5"), None);
+        assert_eq!(m("http://10.0.0.5/a b", "10.0.0.5"), None);
+    }
+
+    #[test]
+    fn hosts_invalidos() {
+        for h in [
+            "0.0.0.0",
+            "127.0.0.1",
+            "127.1.2.3",
+            "127.255.255.254",
+            "localhost",
+            "LocalHost",
+            "::",
+            "::1",
+        ] {
+            assert!(is_bad_host(h), "{h}");
+        }
+        for h in ["192.168.1.120", "128.0.0.1", "fe80::1", "camera.lan"] {
+            assert!(!is_bad_host(h), "{h}");
+        }
     }
 }
