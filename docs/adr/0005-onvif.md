@@ -44,6 +44,10 @@ Requisitos permanentes: leve, simples, sem rede no boot.
     das credenciais para ataque de dicionário offline. A regra também cobre
     firmwares que anunciam `0.0.0.0`, loopback ou o IP interno atrás de NAT.
     `XAddr` que não é `http` ou ilegível: vale o serviço de dispositivo;
+  - a URL RTSP de `GetStreamUri` segue a mesma regra: valem o esquema, a
+    porta e o caminho/consulta devolvidos, e o host é sempre o da câmera.
+    A senha do cadastro vai embutida ao abrir o stream; seguir o host
+    anunciado a entregaria a qualquer host (inclusive fora da LAN);
   - na busca, o `XAddr` do ProbeMatch vira o destino das credenciais no
     cadastro. Só vale `http://` com host IP literal privado, link-local ou
     loopback (o mesmo critério da origem do datagrama), sem credenciais
