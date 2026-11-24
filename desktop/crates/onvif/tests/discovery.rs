@@ -6,6 +6,7 @@ mod support;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::time::{Duration, Instant};
 
+use rtsp_viewer_onvif::discovery::MAX_DEVICES;
 use rtsp_viewer_onvif::{DiscoveryConfig, discover};
 use support::simulator::{DiscoveryReply, start_discovery_responder};
 
@@ -79,6 +80,45 @@ fn varias_cameras_ordenadas() {
             .collect::<Vec<_>>()
             .len(),
         2
+    );
+}
+
+#[test]
+fn flood_de_dispositivos_fica_limitado_e_no_prazo() {
+    let r = start_discovery_responder(
+        "127.0.0.1:0",
+        &[],
+        "127.0.0.1",
+        vec![DiscoveryReply::Flood(MAX_DEVICES + 200)],
+    );
+    let t = Instant::now();
+    let found = discover(&config(r.addr.port())).unwrap();
+    // O sistema pode descartar datagramas no loopback; o que importa é o teto.
+    assert!(!found.is_empty());
+    assert!(found.len() <= MAX_DEVICES, "{}", found.len());
+    assert!(
+        t.elapsed() < Duration::from_millis(1500),
+        "{:?}",
+        t.elapsed()
+    );
+}
+
+#[test]
+fn flood_de_lixo_nao_impede_a_busca() {
+    let r = start_discovery_responder(
+        "127.0.0.1:0",
+        &[],
+        "127.0.0.1",
+        vec![tapo(), DiscoveryReply::Junk(200)],
+    );
+    let t = Instant::now();
+    let found = discover(&config(r.addr.port())).unwrap();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].endpoint, "urn:uuid:tapo-1");
+    assert!(
+        t.elapsed() < Duration::from_millis(1500),
+        "{:?}",
+        t.elapsed()
     );
 }
 

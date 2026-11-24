@@ -2,7 +2,9 @@
 //!
 //! Um Probe por interface IPv4 ativa, TTL 1, escuta por alguns segundos.
 //! Respostas são entrada não confiável: só ProbeMatch da busca atual
-//! (`RelatesTo`), de origem privada, link-local ou loopback, até 64 KiB.
+//! (`RelatesTo`), de origem privada, link-local ou loopback, até 64 KiB, com
+//! XAddr de host IP também privado, link-local ou loopback. Fila de recepção
+//! e número de dispositivos limitados.
 
 use std::collections::BTreeMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket};
@@ -20,6 +22,15 @@ pub const MULTICAST: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(239, 255, 25
 
 /// Tamanho máximo aceito de uma resposta UDP.
 pub const MAX_DATAGRAM: usize = 64 * 1024;
+
+/// Respostas aguardando o parse. Com [`MAX_DATAGRAM`], limita a fila a
+/// ~4 MiB mesmo sob flood; o excedente é descartado.
+const QUEUE_CAPACITY: usize = 64;
+
+/// Máximo de dispositivos distintos numa busca; os seguintes são ignorados.
+pub const MAX_DEVICES: usize = 256;
+
+type Datagram = (Vec<u8>, SocketAddr);
 
 #[derive(Debug, Clone)]
 pub struct DiscoveryConfig {
@@ -76,7 +87,9 @@ pub fn discover(config: &DiscoveryConfig) -> Result<Vec<DiscoveredDevice>, Disco
     let probe = probe_message(&message_id);
     let deadline = Instant::now() + config.duration;
 
-    let (tx, rx) = mpsc::channel::<(Vec<u8>, SocketAddr)>();
+    // Fila limitada: um host da LAN em flood não faz a memória crescer; o que
+    // não cabe é descartado na thread de recepção.
+    let (tx, rx) = mpsc::sync_channel::<Datagram>(QUEUE_CAPACITY);
     let mut sent_any = false;
     let mut last_error = None;
     for iface in interfaces {
@@ -88,7 +101,8 @@ pub fn discover(config: &DiscoveryConfig) -> Result<Vec<DiscoveredDevice>, Disco
                 }
                 sent_any = true;
                 let tx = tx.clone();
-                thread::spawn(move || receive_until(sock, deadline, tx));
+                let id = message_id.clone();
+                thread::spawn(move || receive_until(sock, deadline, &id, tx));
             }
             Err(e) => last_error = Some(e.to_string()),
         }
@@ -98,15 +112,27 @@ pub fn discover(config: &DiscoveryConfig) -> Result<Vec<DiscoveredDevice>, Disco
         return Err(DiscoveryError::Network(last_error.unwrap_or_default()));
     }
 
+    Ok(collect_devices(rx, &message_id))
+}
+
+/// Lê as respostas até as threads de recepção terminarem: dispositivos sem
+/// repetição (por `EndpointReference`), no máximo [`MAX_DEVICES`], ordenados
+/// por IP.
+fn collect_devices(
+    datagrams: impl IntoIterator<Item = Datagram>,
+    message_id: &str,
+) -> Vec<DiscoveredDevice> {
     let mut found: BTreeMap<String, DiscoveredDevice> = BTreeMap::new();
-    while let Ok((data, from)) = rx.recv() {
-        if let Some(dev) = parse_probe_match(&data, &message_id, from.ip()) {
+    for (data, from) in datagrams {
+        if let Some(dev) = parse_probe_match(&data, message_id, from.ip())
+            && (found.len() < MAX_DEVICES || found.contains_key(&dev.endpoint))
+        {
             found.entry(dev.endpoint.clone()).or_insert(dev);
         }
     }
     let mut list: Vec<DiscoveredDevice> = found.into_values().collect();
     list.sort_by_key(|d| sort_key(&d.host));
-    Ok(list)
+    list
 }
 
 fn sort_key(host: &str) -> (u32, String) {
@@ -142,15 +168,31 @@ fn open_socket(iface: Ipv4Addr) -> std::io::Result<UdpSocket> {
     Ok(s.into())
 }
 
-fn receive_until(sock: UdpSocket, deadline: Instant, tx: mpsc::Sender<(Vec<u8>, SocketAddr)>) {
+/// Triagem barata antes de copiar e enfileirar: origem confiável, UTF-8 e o
+/// `MessageID` da busca presente (o `RelatesTo` o contém). O parse completo
+/// fica em [`parse_probe_match`].
+fn worth_queueing(data: &[u8], from: IpAddr, message_id: &str) -> bool {
+    data.len() <= MAX_DATAGRAM
+        && trusted_origin(from)
+        && std::str::from_utf8(data).is_ok_and(|t| t.contains(message_id))
+}
+
+fn receive_until(
+    sock: UdpSocket,
+    deadline: Instant,
+    message_id: &str,
+    tx: mpsc::SyncSender<Datagram>,
+) {
     // Um byte a mais que o limite: se ele for preenchido, a resposta é grande
     // demais e é descartada.
     let mut buf = vec![0u8; MAX_DATAGRAM + 1];
     while Instant::now() < deadline {
         match sock.recv_from(&mut buf) {
-            Ok((n, from)) if n <= MAX_DATAGRAM => {
-                if tx.send((buf[..n].to_vec(), from)).is_err() {
-                    return;
+            Ok((n, from)) if worth_queueing(&buf[..n], from.ip(), message_id) => {
+                match tx.try_send((buf[..n].to_vec(), from)) {
+                    // Fila cheia: descarta (flood); a busca segue.
+                    Ok(()) | Err(mpsc::TrySendError::Full(_)) => {}
+                    Err(mpsc::TrySendError::Disconnected(_)) => return,
                 }
             }
             Ok(_) => {}
@@ -235,7 +277,7 @@ pub fn parse_probe_match(data: &[u8], message_id: &str, from: IpAddr) -> Option<
         .unwrap_or_default()
         .split_whitespace()
         .collect();
-    let device_url = choose_xaddr(&xaddrs, &from.to_string())?;
+    let device_url = choose_xaddr(&xaddrs, from)?;
     // Host da câmera = o do serviço escolhido (é o que se cadastra). Em
     // máquinas com várias interfaces, a origem do datagrama pode diferir.
     let host = crate::client::DeviceService::from_url(&device_url)?.host;
@@ -263,23 +305,28 @@ pub fn parse_probe_match(data: &[u8], message_id: &str, from: IpAddr) -> Option<
     })
 }
 
-/// Só `http://`; prefere o XAddr com o mesmo IP de origem, depois o primeiro
-/// com host IPv4, depois o primeiro http.
-fn choose_xaddr(xaddrs: &[&str], from_host: &str) -> Option<String> {
-    let http: Vec<&str> = xaddrs
+/// Só `http://` com host IP literal confiável (privado, link-local ou
+/// loopback), sem credenciais embutidas: o XAddr vira o destino das
+/// credenciais no cadastro, então nome DNS, IP público ou `user@host` são
+/// descartados (ADR 0005). Prefere o XAddr com o mesmo IP de origem, depois o
+/// primeiro IPv4, depois o primeiro IPv6. Nenhum aceito → `None`.
+fn choose_xaddr(xaddrs: &[&str], from: IpAddr) -> Option<String> {
+    let accepted: Vec<(&str, IpAddr)> = xaddrs
         .iter()
-        .copied()
-        .filter(|x| x.starts_with("http://"))
-        .collect();
-    let host_of = |x: &str| crate::client::DeviceService::from_url(x).map(|d| d.host);
-    http.iter()
-        .find(|x| host_of(x).as_deref() == Some(from_host))
-        .or_else(|| {
-            http.iter()
-                .find(|x| host_of(x).is_some_and(|h| h.parse::<Ipv4Addr>().is_ok()))
+        .filter_map(|x| {
+            let ip = crate::client::DeviceService::from_url(x)?
+                .host
+                .parse::<IpAddr>()
+                .ok()?;
+            trusted_origin(ip).then_some((*x, ip))
         })
-        .or_else(|| http.first())
-        .map(|x| x.to_string())
+        .collect();
+    accepted
+        .iter()
+        .find(|(_, ip)| *ip == from)
+        .or_else(|| accepted.iter().find(|(_, ip)| ip.is_ipv4()))
+        .or_else(|| accepted.first())
+        .map(|(x, _)| x.to_string())
 }
 
 /// Scopes ONVIF usam codificação percentual (e às vezes `_` no lugar de espaço).
@@ -420,6 +467,71 @@ mod tests {
         assert!(parse_probe_match(grande.as_bytes(), ID, lan()).is_none());
         let sem_xaddr = reply(ID, "urn:a", "", "");
         assert!(parse_probe_match(sem_xaddr.as_bytes(), ID, lan()).is_none());
+    }
+
+    #[test]
+    fn xaddr_so_com_ip_confiavel() {
+        let device = |xaddrs: &str| {
+            parse_probe_match(reply(ID, "urn:a", xaddrs, "").as_bytes(), ID, lan())
+                .map(|d| (d.host, d.device_url))
+        };
+        // Destinos que levariam as credenciais para fora da LAN ou para um
+        // host que a origem não controla: o ProbeMatch é descartado.
+        for bad in [
+            "http://8.8.8.8/onvif/device_service",
+            "http://evil.example/onvif/device_service",
+            "http://camera.lan/onvif/device_service",
+            "http://192.168.1.120@evil.com/onvif/device_service",
+            "http://admin:x@192.168.1.120/onvif/device_service",
+            "http://[2001:db8::1]/onvif/device_service",
+            "http://100.64.0.1/onvif/device_service",
+        ] {
+            assert_eq!(device(bad), None, "{bad}");
+        }
+        // Os inválidos são pulados; vale o primeiro IP confiável.
+        assert_eq!(
+            device("http://evil.example/x http://8.8.8.8/x http://10.0.0.9/x"),
+            Some(("10.0.0.9".into(), "http://10.0.0.9/x".into()))
+        );
+        // Só IPv6 link-local: aceito.
+        assert_eq!(
+            device("http://[fe80::1]:80/x"),
+            Some(("fe80::1".into(), "http://[fe80::1]:80/x".into()))
+        );
+    }
+
+    #[test]
+    fn limita_dispositivos_distintos() {
+        let from: SocketAddr = "192.168.1.120:3702".parse().unwrap();
+        let datagrams = (0..MAX_DEVICES + 50)
+            .map(|i| {
+                let r = reply(ID, &format!("urn:d{i}"), "http://192.168.1.120/x", "");
+                (r.into_bytes(), from)
+            })
+            // Um já visto depois do limite continua sem duplicar.
+            .chain(std::iter::once((
+                reply(ID, "urn:d0", "http://192.168.1.120/x", "").into_bytes(),
+                from,
+            )));
+        let list = collect_devices(datagrams, ID);
+        assert_eq!(list.len(), MAX_DEVICES);
+        assert!(list.iter().any(|d| d.endpoint == "urn:d0"));
+    }
+
+    #[test]
+    fn triagem_antes_da_fila() {
+        let boa = reply(ID, "urn:a", "http://192.168.1.120/x", "");
+        assert!(worth_queueing(boa.as_bytes(), lan(), ID));
+        let outra = reply("uuid:outra", "urn:a", "http://192.168.1.120/x", "");
+        assert!(!worth_queueing(outra.as_bytes(), lan(), ID));
+        assert!(!worth_queueing(
+            boa.as_bytes(),
+            "8.8.8.8".parse().unwrap(),
+            ID
+        ));
+        assert!(!worth_queueing(&[0xff, 0xfe], lan(), ID));
+        let grande = format!("{boa}{}", " ".repeat(MAX_DATAGRAM));
+        assert!(!worth_queueing(grande.as_bytes(), lan(), ID));
     }
 
     #[test]

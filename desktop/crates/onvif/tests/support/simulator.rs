@@ -466,6 +466,11 @@ pub enum DiscoveryReply {
     WrongRelatesTo,
     /// Datagrama que não é XML.
     Malformed,
+    /// Flood: `n` ProbeMatch válidos desta busca, cada um com endpoint
+    /// distinto (`urn:flood-<i>`) e XAddr no IP anunciado.
+    Flood(usize),
+    /// Flood: `n` datagramas de ~60 KiB que não são desta busca.
+    Junk(usize),
 }
 
 pub struct DiscoveryResponder {
@@ -533,6 +538,24 @@ pub fn start_discovery_responder(
                 .map(|m| m.text_trimmed().to_string())
                 .unwrap_or_default();
             for r in &replies {
+                match r {
+                    DiscoveryReply::Flood(n) => {
+                        let xaddr = format!("http://{advertise}/onvif/device_service");
+                        for i in 0..*n {
+                            let d = probe_match(&id, &format!("urn:flood-{i}"), &xaddr, "");
+                            let _ = sock.send_to(d.as_bytes(), from);
+                        }
+                        continue;
+                    }
+                    DiscoveryReply::Junk(n) => {
+                        let d = format!("<x>{}</x>", "a".repeat(60 * 1024));
+                        for _ in 0..*n {
+                            let _ = sock.send_to(d.as_bytes(), from);
+                        }
+                        continue;
+                    }
+                    _ => {}
+                }
                 let datagram = match r {
                     DiscoveryReply::Match {
                         endpoint,
@@ -546,6 +569,7 @@ pub fn start_discovery_responder(
                         "",
                     ),
                     DiscoveryReply::Malformed => "isto não é XML <".to_string(),
+                    DiscoveryReply::Flood(_) | DiscoveryReply::Junk(_) => unreachable!(),
                 };
                 let _ = sock.send_to(datagram.as_bytes(), from);
             }
