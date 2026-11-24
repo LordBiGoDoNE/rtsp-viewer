@@ -18,8 +18,8 @@ use rtsp_viewer_media::{FfmpegPlayer, PlayerConfig};
 fn base() -> Option<String> {
     let base = std::env::var("RTSP_TEST_BASE").ok()?;
     rtsp_viewer_media::init().unwrap();
-    // Como o app faz no boot: o dispositivo de hardware fica pronto antes da
-    // primeira câmera.
+    // Como o app faz quando o usuário aponta para uma câmera (`prepare`): o
+    // dispositivo de hardware fica pronto antes da primeira câmera.
     rtsp_viewer_media::warm_up_hardware();
     Some(base.trim_end_matches('/').to_string())
 }

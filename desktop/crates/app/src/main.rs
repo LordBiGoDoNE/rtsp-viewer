@@ -20,14 +20,10 @@ fn main() -> Result<(), slint::PlatformError> {
     let trace = boot::BootTrace::from_env();
     let window = AppWindow::new()?;
 
-    // Lê só o JSON da lista. Cofre de senhas e FFmpeg ficam fora do caminho
-    // do boot: o cofre abre no primeiro uso; o FFmpeg inicia em segundo plano.
+    // Lê só o JSON da lista. Cofre de senhas e dispositivo de hardware ficam
+    // fora do caminho do boot: o cofre abre no primeiro uso; o dispositivo é
+    // preparado quando o usuário aponta para uma câmera (design.md, D3).
     let (catalog, banner) = load_catalog();
-    std::thread::spawn(|| {
-        if rtsp_viewer_media::init().is_ok() {
-            rtsp_viewer_media::warm_up_hardware();
-        }
-    });
 
     let _controller =
         ui::Controller::attach(&window, catalog, Box::new(FfmpegPlayer::default()), banner);

@@ -51,6 +51,13 @@ const REQUIRED: &[(&str, Kind, &[&str])] = &[
             "toolbar-height",
             "form-width",
             "dialog-width",
+            "status-width",
+            "info-width",
+            "about-width",
+            "window-width",
+            "window-height",
+            "window-min-width",
+            "window-min-height",
         ],
     ),
 ];

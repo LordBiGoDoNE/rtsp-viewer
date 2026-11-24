@@ -69,6 +69,29 @@ de quadros além do último. Reconexão com backoff de 1, 2, 4, 8, 16 e 30 s
   para RGBA com `swscale`. Sem hardware ou com falha na abertura, cai para
   software sem intervenção do usuário; o modo em uso aparece nas informações
   da câmera.
+- Dispositivo de hardware compartilhado: criado uma vez por processo e
+  reaproveitado por todas as câmeras. Ele não é criado no boot, e sim quando o
+  usuário aponta para uma câmera da lista (mouse sobre a linha ou setas), por
+  `StreamPlayer::prepare`, numa thread. Abrir com Enter ou pela acessibilidade
+  sem apontar antes cria o dispositivo no caminho da abertura. Medido no
+  Windows (release, 20 câmeras, D3D11VA, câmera falsa H.264 com GOP de 1 s):
+  - memória ociosa com o dispositivo criado no boot: working set 94 MB e
+    private bytes 136 MB; sem ele, 78 MB e 91 MB (o `init` do FFmpeg sozinho
+    não muda nada, porque as DLLs já carregam com o processo). O dispositivo
+    custa cerca de +16 MB de working set e +45 MB de private bytes;
+  - criação do dispositivo: 220–270 ms (até ~540 ms na primeira vez depois de
+    um tempo ocioso);
+  - primeira imagem, 25 aberturas em processos novos com fase aleatória em
+    relação ao GOP: mediana de 1049 ms com o dispositivo pronto e 861 ms sem
+    ele (mínimos 505 e 662 ms). A espera pelo quadro-chave (0 a 1 s) domina
+    a variação e se sobrepõe à criação do dispositivo, então o ganho na
+    mediana não aparece; o ganho real fica limitado ao custo da criação.
+  Pagar ~45 MB fixos, mesmo sem abrir câmera, por um ganho que só aparece na
+  primeira câmera e é encoberto pela espera do quadro-chave não se justifica
+  num client leve (`openspec/config.yaml`). Preparar no gesto de apontar
+  mantém o ganho para quem vai abrir uma câmera, sem custo para quem só abre
+  a lista. Boot medido depois da mudança (`measure-boot.ps1`, 10 execuções):
+  mediana de 335 ms.
 - Exibição zero-copy (textura da GPU direto no Slint) fica fora desta spec.
 - Binding: o grupo 1 escolhe entre `ffmpeg-next` e `ffmpeg-the-third` pelo
   critério "suporta a versão de FFmpeg usada nos dois sistemas e tem manutenção
@@ -121,7 +144,8 @@ de quadros além do último. Reconexão com backoff de 1, 2, 4, 8, 16 e 30 s
 - Atalhos: Enter abre a câmera selecionada, F11 ou duplo clique alterna tela
   cheia, Esc sai da tela cheia e depois volta à lista.
 - Boot: a janela é mostrada antes de ler o cofre; a lista vem do JSON (rápido)
-  e nenhuma conexão é aberta automaticamente.
+  e nenhuma conexão é aberta automaticamente. O dispositivo de decodificação
+  por hardware também não é criado no boot (D3).
 
 ### D7. Licença do Slint
 

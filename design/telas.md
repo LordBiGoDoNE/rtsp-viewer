@@ -1,8 +1,12 @@
 # Telas do rtsp-viewer
 
 Descrição independente de plataforma, válida para o desktop (Slint) e o Android
-(Compose). Cores, fontes e espaçamentos vêm de `design/tokens.json` (ADR 0004).
+(Compose). Cores, fontes, espaçamentos e tamanhos (inclusive da janela e dos
+painéis) vêm de `design/tokens.json` (ADR 0004); a UI não usa medidas literais.
 Toda mudança de tela altera este documento e as duas UIs.
+
+**Janela** (desktop): tamanho inicial `size.window-width` × `size.window-height`;
+mínimo `size.window-min-width` × `size.window-min-height`.
 
 Tema escuro único nesta versão. Textos em pt-BR, exatamente como abaixo.
 
@@ -64,7 +68,8 @@ Fundo `video-background`. O vídeo ocupa a área toda, mantendo a proporção.
 **Barra superior** (escondida em tela cheia): "Voltar", nome da câmera, e à
 direita "Informações" e "Tela cheia".
 
-**Estados** (mensagem centralizada sobre o vídeo, fundo `overlay`):
+**Estados** (mensagem centralizada sobre o vídeo, fundo `overlay`, largura até
+`size.status-width`):
 
 | Estado | Texto |
 | --- | --- |
@@ -73,7 +78,8 @@ direita "Informações" e "Tela cheia".
 | Reconectando | "Reconectando (tentativa N)…" |
 | Erro | mensagem do erro, por exemplo "Usuário ou senha inválidos." ou "Formato de vídeo não suportado: mjpeg", e o botão "Tentar de novo" |
 
-**Informações** (painel no canto, alterna com o botão): codec, resolução,
+**Informações** (painel no canto, largura `size.info-width`, alterna com o
+botão): codec, resolução,
 decodificação ("hardware (d3d11va)" ou "software") e endereço sem credenciais.
 
 **Senha pedida** (câmera com usuário e sem senha disponível): diálogo "Senha
@@ -85,4 +91,5 @@ fora dela, volta à lista.
 ## 4. Sobre
 
 Nome "rtsp-viewer", versão, "Client leve para câmeras RTSP." e o componente de
-atribuição do Slint (obrigatório, ADR 0003). Botão "Voltar".
+atribuição do Slint (obrigatório, ADR 0003; largura até `size.about-width`).
+Botão "Voltar".

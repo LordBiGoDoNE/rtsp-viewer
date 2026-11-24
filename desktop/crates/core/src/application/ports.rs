@@ -143,6 +143,12 @@ pub trait PlaybackHandle: Send {
 
 pub trait StreamPlayer {
     fn start(&self, request: StreamRequest, sink: PlayerSink) -> Box<dyn PlaybackHandle>;
+
+    /// Sinal de que o usuário provavelmente vai abrir uma câmera: o player
+    /// pode preparar recursos caros (por exemplo, o dispositivo de
+    /// decodificação por hardware) em segundo plano. Não bloqueia e pode ser
+    /// chamado muitas vezes; o padrão não faz nada.
+    fn prepare(&self) {}
 }
 
 #[cfg(test)]
