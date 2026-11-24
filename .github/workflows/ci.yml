@@ -73,6 +73,25 @@ jobs:
       - name: Build release
         run: cargo build --release --locked
 
+      - name: cargo-deb
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deb@3.8.0
+
+      - name: Pacote .deb (Ubuntu 24.04)
+        run: |
+          cargo deb -p rtsp-viewer --no-build
+          ls -l target/debian/*.deb
+          dpkg-deb --info target/debian/*.deb | grep -E "Package|Version|Depends|Installed-Size"
+
+      - name: Artefato .deb
+        if: ${{ !env.ACT }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtsp-viewer-deb
+          path: desktop/target/debian/*.deb
+          retention-days: 14
+
   desktop-windows:
     runs-on: windows-latest
     timeout-minutes: 40
@@ -106,12 +125,33 @@ jobs:
         with:
           rust-src-dir: desktop
           cache-workspaces: desktop
+          # Sem RUSTFLAGS da action: ele anularia o crt-static de desktop/.cargo/config.toml.
+          rustflags: ""
 
       - name: Testes
         run: cargo test --workspace --locked
 
       - name: Build release
         run: cargo build --release --locked
+
+      - name: Pacote .zip (Windows x64)
+        working-directory: .
+        run: ./scripts/package-windows.ps1
+
+      - name: Pacote sem VCRUNTIME e só com as DLLs esperadas
+        working-directory: .
+        run: |
+          $objdump = Join-Path $env:LIBCLANG_PATH 'llvm-objdump.exe'
+          $imports = & $objdump -p desktop/target/release/rtsp-viewer.exe | Select-String 'DLL Name: (\S+)' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+          if ($imports -match '^(VCRUNTIME|MSVCP)') { throw "o executável depende do runtime do Visual C++: $($imports -match '^(VCRUNTIME|MSVCP)')" }
+          Get-ChildItem dist/rtsp-viewer-*-windows-x64 | Select-Object Name, Length | Format-Table -AutoSize
+
+      - name: Artefato .zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtsp-viewer-windows-x64
+          path: dist/*.zip
+          retention-days: 14
 
   openspec:
     runs-on: ubuntu-24.04
