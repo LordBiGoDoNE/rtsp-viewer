@@ -71,6 +71,34 @@ abstract class CheckUiColors : DefaultTask() {
     }
 }
 
+/**
+ * Falha se `app` ou `core` usarem cliente HTTP: o texto puro liberado no
+ * manifesto só pode ser usado pelo módulo `onvif`, atrás do guarda de rede local.
+ */
+abstract class CheckCleartextHttp : DefaultTask() {
+    @get:InputFiles
+    @get:SkipWhenEmpty
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val sources: ConfigurableFileCollection
+
+    @get:OutputFile
+    abstract val report: RegularFileProperty
+
+    @TaskAction
+    fun check() {
+        val found = sources.files.sortedBy { it.path }.flatMap { f ->
+            CleartextHttpCheck.violations(f.name, f.readText())
+        }
+        report.get().asFile.apply { parentFile.mkdirs(); writeText(found.joinToString("\n")) }
+        if (found.isNotEmpty()) {
+            throw GradleException(
+                "Cliente HTTP fora do módulo onvif; o texto puro só vale para o ONVIF na rede local (ADR 0006):\n" +
+                    found.joinToString("\n"),
+            )
+        }
+    }
+}
+
 /** Registra as tasks; o módulo `app` liga a saída às fontes de cada variante. */
 class DesignTokensPlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -86,6 +114,13 @@ class DesignTokensPlugin : Plugin<Project> {
                 },
             )
             report.set(project.layout.buildDirectory.file("reports/checkUiColors.txt"))
+        }
+        project.tasks.register("checkCleartextHttp", CheckCleartextHttp::class.java) {
+            sources.from(
+                project.fileTree("src/main") { include("**/*.kt", "**/*.java") },
+                project.rootProject.fileTree("core/src/main") { include("**/*.kt", "**/*.java") },
+            )
+            report.set(project.layout.buildDirectory.file("reports/checkCleartextHttp.txt"))
         }
     }
 }

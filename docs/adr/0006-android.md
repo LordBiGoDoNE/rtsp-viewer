@@ -51,8 +51,11 @@ escopo do desktop: cadastro, visualização e ONVIF.
 - HTTP sem TLS: a configuração de segurança de rede do Android não aceita
   faixas de IP. O tráfego em texto puro fica permitido no manifesto, e o
   adaptador ONVIF do app só envia para endereços privados, link-local ou
-  loopback, conferidos depois da resolução do nome. O app não usa HTTP para
-  mais nada; o RTSP não passa por essa configuração.
+  loopback, conferidos depois da resolução do nome, sem seguir
+  redirecionamento. O app não usa HTTP para mais nada: a task
+  `checkCleartextHttp` recusa cliente HTTP em `app` e `core` (só o módulo
+  `onvif` usa HTTP). Ela não prova o guarda de endereço, coberto pelos testes
+  do adaptador. O RTSP não passa por essa configuração.
 - Senhas cifradas com AES-GCM por chave não exportável do Android Keystore;
   backup e transferência de dados desligados.
 - Tema do Compose gerado no build por `android/build-logic` a partir de
