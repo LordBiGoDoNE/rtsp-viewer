@@ -88,7 +88,7 @@ Em andamento na spec `app-android` (ADR 0006). Pré-requisitos no Windows: JDK 2
 . ./scripts/env-android.ps1       # JAVA_HOME (JDK 21), ANDROID_HOME e adb no PATH
 cd android
 ./gradlew -p build-logic test     # gerador do tema a partir de design/tokens.json
-./gradlew :core:test :onvif:test :app:testDebugUnitTest :app:checkUiColors :app:lintRelease
+./gradlew :core:test :onvif:test :app:testDebugUnitTest :app:checkUiColors :app:checkCleartextHttp :app:lintRelease
 ./gradlew :app:connectedDebugAndroidTest   # testes instrumentados (celular ou emulador)
 ```
 
