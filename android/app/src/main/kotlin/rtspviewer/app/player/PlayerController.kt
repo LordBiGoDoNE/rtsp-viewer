@@ -129,6 +129,7 @@ class PlayerController(
     private fun handleFailure(error: StreamError) {
         engine.close()
         session++
+        _info.value = null // o decoder foi liberado; o painel não mostra dados velhos
         playingSince?.let { policy.recordPlayback(clock() - it) }
         playingSince = null
         if (!error.isRetryable) {

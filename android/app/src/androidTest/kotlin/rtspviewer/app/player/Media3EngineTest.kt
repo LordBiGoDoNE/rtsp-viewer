@@ -112,6 +112,31 @@ class Media3EngineTest {
         assertTrue(s.toString(), s is PlayerState.Reconnecting)
     }
 
+    private fun paraEmMenosDeUmSegundo() {
+        val inicio = System.nanoTime()
+        instrumentation.runOnMainSync { controller.stop() }
+        val ms = (System.nanoTime() - inicio) / 1e6
+        assertTrue("parou em $ms ms", ms < 1_000)
+        assertEquals(PlayerState.Idle, controller.state.value)
+    }
+
+    @Test
+    fun pararConectandoACameraQueNaoRespondeEncerraEmMenosDeUmSegundo() {
+        // TEST-NET-1 (RFC 5737): ninguém responde ao SYN; a conexão fica pendente.
+        abre(StreamRequest(CameraId.generate(), RtspUrl.parse("rtsp://192.0.2.1:554/s").url.withCredentials(null, null), "rtsp://192.0.2.1:554/s"))
+        Thread.sleep(1_000)
+        assertEquals(PlayerState.Connecting, controller.state.value)
+        paraEmMenosDeUmSegundo()
+    }
+
+    @Test
+    fun pararReconectandoEncerraEmMenosDeUmSegundo() {
+        val host = RtspUrl.parse(base!!).url.host
+        abre(StreamRequest(CameraId.generate(), RtspUrl.parse("rtsp://$host:9/s").url.withCredentials(null, null), "rtsp://$host:9/s"))
+        espera(15_000) { controller.state.first { it is PlayerState.Reconnecting } }
+        paraEmMenosDeUmSegundo()
+    }
+
     @Test
     fun pararEncerraEmMenosDeUmSegundo() {
         abre(request("h264"))

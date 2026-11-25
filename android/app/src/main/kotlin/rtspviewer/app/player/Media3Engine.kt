@@ -6,7 +6,6 @@ import android.os.Build
 import android.view.Surface
 import android.view.SurfaceView
 import androidx.annotation.OptIn
-import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -30,6 +29,7 @@ import rtspviewer.core.domain.ConnectionUrl
 @OptIn(UnstableApi::class)
 class Media3Engine(private val context: Context) : VideoEngine {
     private var player: ExoPlayer? = null
+    private var sockets: RtspSockets? = null
     private var surfaceView: SurfaceView? = null
     private var surface: Surface? = null
 
@@ -49,8 +49,10 @@ class Media3Engine(private val context: Context) : VideoEngine {
 
     override fun open(url: ConnectionUrl, listener: VideoEngine.Listener) {
         close()
+        val net = RtspSockets(TIMEOUT_MS.toInt())
         val p = ExoPlayer.Builder(context, renderersFactory())
             .setLoadControl(loadControl())
+            .setReleaseTimeoutMs(RELEASE_TIMEOUT_MS)
             .build()
         surfaceView?.let(p::setVideoSurfaceView) ?: surface?.let(p::setVideoSurface)
         p.addListener(PlayerEvents(p, listener))
@@ -58,17 +60,29 @@ class Media3Engine(private val context: Context) : VideoEngine {
         val source = RtspMediaSource.Factory()
             .setForceUseRtpTcp(true)
             .setTimeoutMs(TIMEOUT_MS)
+            .setSocketFactory(net)
             .createMediaSource(MediaItem.fromUri(url.expose()))
         p.setMediaSource(source)
         p.playWhenReady = true
         p.prepare()
         player = p
+        sockets = net
     }
 
+    /**
+     * Libera o player em até [RELEASE_TIMEOUT_MS] (spec `live-view`: conexão
+     * encerrada em até 1 s, inclusive com a câmera sem responder). Conexões
+     * ainda pendentes são abortadas antes, para a thread de reprodução não
+     * ficar presa no `connect`; as que sobrarem são fechadas depois.
+     */
     override fun close() {
         val p = player ?: return
+        val net = sockets
         player = null
+        sockets = null
+        net?.abortPending()
         p.release()
+        net?.closeAll()
     }
 
     private fun renderersFactory() = DefaultRenderersFactory(context)
@@ -97,15 +111,7 @@ class Media3Engine(private val context: Context) : VideoEngine {
         }
 
         override fun onTracksChanged(tracks: Tracks) {
-            if (tracks.isEmpty) return
-            val video = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
-            when {
-                video.isEmpty() -> fail(StreamError.NoVideo())
-                video.none { it.isSupported } -> {
-                    val mime = video.first().getTrackFormat(0).sampleMimeType
-                    fail(StreamError.UnsupportedCodec(codecName(mime)))
-                }
-            }
+            tracksFailure(tracks)?.let(::fail)
         }
 
         private fun fail(error: StreamError) {
@@ -153,6 +159,9 @@ class Media3Engine(private val context: Context) : VideoEngine {
         const val PLAYBACK_BUFFER_MS = 100
         const val REBUFFER_MS = 250
         const val TIMEOUT_MS = 5_000L
+
+        /** Espera máxima do `release()` na thread principal (o padrão do Media3 é 500 ms). */
+        const val RELEASE_TIMEOUT_MS = 300L
 
         /** Decoder por hardware? API 29+ pergunta ao sistema; antes, pelo nome. */
         fun isHardware(decoderName: String): Boolean {

@@ -55,6 +55,18 @@ class PlayerControllerTest {
     }
 
     @Test
+    fun falhaLimpaAsInformacoes() = runTest {
+        val e = FakeEngine()
+        val c = controller(e)
+        c.start(request)
+        e.listener!!.onPlaying()
+        e.listener!!.onInfo(StreamInfo("h264", 1280, 720, "c2.qti.avc.decoder", true))
+        e.listener!!.onFailure(StreamError.Unreachable("x"))
+        assertIs<PlayerState.Reconnecting>(c.state.value)
+        assertEquals(null, c.info.value)
+    }
+
+    @Test
     fun quedaReconectaComEsperaCrescente() = runTest {
         val e = FakeEngine()
         val c = controller(e)
