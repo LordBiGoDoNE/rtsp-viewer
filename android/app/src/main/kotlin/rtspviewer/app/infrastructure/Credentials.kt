@@ -36,25 +36,55 @@ interface SecretCipher {
     fun open(sealed: Sealed, aad: ByteArray): ByteArray
 }
 
+/** Origem da chave da cifra: o Android Keystore no app, uma chave em software nos testes JVM. */
+interface CipherKeys {
+    /** A chave atual, ou `null` se ainda não existe. */
+    fun existing(): SecretKey?
+
+    fun generate(): SecretKey
+
+    fun delete()
+}
+
 /**
  * AES-256-GCM com chave não exportável do Android Keystore (design D2). A chave
  * é criada na primeira gravação e nunca sai do Keystore.
+ *
+ * Chave presente mas inutilizável (invalidada pelo sistema, entrada corrompida
+ * no Keystore): os textos cifrados com ela já não decifram e o cofre os trata
+ * como ausentes. Para a senha digitada de novo poder ser guardada, a gravação
+ * apaga essa chave e cria outra, uma única vez.
  */
-class KeystoreSecretCipher(private val alias: String = DEFAULT_ALIAS) : SecretCipher {
+class KeystoreSecretCipher internal constructor(private val keys: CipherKeys) : SecretCipher {
+    constructor(alias: String = DEFAULT_ALIAS) : this(AndroidKeystoreKeys(alias))
+
     override fun seal(plain: ByteArray, aad: ByteArray): Sealed = keystoreOp {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, existingKey() ?: generateKey())
-        cipher.updateAAD(aad)
-        val data = cipher.doFinal(plain)
-        Sealed(cipher.iv, data)
+        val sealed = try {
+            keys.existing()?.let { encrypt(it, plain, aad) }
+        } catch (_: GeneralSecurityException) {
+            keys.delete()
+            null
+        } catch (_: RuntimeException) {
+            keys.delete()
+            null
+        }
+        sealed ?: encrypt(keys.generate(), plain, aad)
     }
 
     override fun open(sealed: Sealed, aad: ByteArray): ByteArray = keystoreOp {
-        val key = existingKey() ?: throw GeneralSecurityException("chave ausente")
+        val key = keys.existing() ?: throw GeneralSecurityException("chave ausente")
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, sealed.iv))
         cipher.updateAAD(aad)
         cipher.doFinal(sealed.data)
+    }
+
+    private fun encrypt(key: SecretKey, plain: ByteArray, aad: ByteArray): Sealed {
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.ENCRYPT_MODE, key)
+        cipher.updateAAD(aad)
+        val data = cipher.doFinal(plain)
+        return Sealed(cipher.iv, data)
     }
 
     /**
@@ -70,12 +100,28 @@ class KeystoreSecretCipher(private val alias: String = DEFAULT_ALIAS) : SecretCi
         throw GeneralSecurityException("falha do Keystore: ${e.javaClass.simpleName}", e)
     }
 
-    private fun existingKey(): SecretKey? {
+    /** Remove a chave (testes). */
+    fun deleteKey() = keys.delete()
+
+    companion object {
+        const val DEFAULT_ALIAS = "rtsp-viewer-credentials"
+        private const val TRANSFORMATION = "AES/GCM/NoPadding"
+        private const val TAG_BITS = 128
+    }
+}
+
+/** Chave AES não exportável no Android Keystore, pelo [alias]. */
+private class AndroidKeystoreKeys(private val alias: String) : CipherKeys {
+    override fun existing(): SecretKey? {
         val ks = KeyStore.getInstance(KEYSTORE).apply { load(null) }
         return ks.getKey(alias, null) as? SecretKey
     }
 
-    private fun generateKey(): SecretKey {
+    override fun delete() {
+        KeyStore.getInstance(KEYSTORE).apply { load(null) }.deleteEntry(alias)
+    }
+
+    override fun generate(): SecretKey {
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
         generator.init(
             KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
@@ -88,16 +134,8 @@ class KeystoreSecretCipher(private val alias: String = DEFAULT_ALIAS) : SecretCi
         return generator.generateKey()
     }
 
-    /** Remove a chave (testes). */
-    fun deleteKey() {
-        KeyStore.getInstance(KEYSTORE).apply { load(null) }.deleteEntry(alias)
-    }
-
-    companion object {
-        const val DEFAULT_ALIAS = "rtsp-viewer-credentials"
-        private const val KEYSTORE = "AndroidKeyStore"
-        private const val TRANSFORMATION = "AES/GCM/NoPadding"
-        private const val TAG_BITS = 128
+    private companion object {
+        const val KEYSTORE = "AndroidKeyStore"
     }
 }
 
