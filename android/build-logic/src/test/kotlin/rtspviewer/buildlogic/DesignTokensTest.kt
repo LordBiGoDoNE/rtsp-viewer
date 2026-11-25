@@ -83,3 +83,42 @@ class UiColorCheckTest {
         )
     }
 }
+
+class CleartextHttpCheckTest {
+    @Test
+    fun `aceita codigo sem cliente HTTP e URLs apenas como texto`() {
+        val src = """
+            val url = "http://192.168.0.10/onvif/device_service"
+            // HttpURLConnection em comentário não conta
+            /**
+             * openConnection() em KDoc não conta
+             */
+        """.trimIndent()
+        assertEquals(emptyList<String>(), CleartextHttpCheck.violations("A.kt", src))
+    }
+
+    @Test
+    fun `recusa clientes HTTP fora do modulo onvif`() {
+        val src = """
+            import java.net.HttpURLConnection
+            val c = URL(u).openConnection()
+            val s = URL(u).openStream()
+            import okhttp3.OkHttpClient
+            import io.ktor.client.HttpClient
+            import java.net.http.HttpClient
+            val w = WebView(ctx)
+        """.trimIndent()
+        assertEquals(
+            listOf(
+                "A.kt:1: import java.net.HttpURLConnection",
+                "A.kt:2: val c = URL(u).openConnection()",
+                "A.kt:3: val s = URL(u).openStream()",
+                "A.kt:4: import okhttp3.OkHttpClient",
+                "A.kt:5: import io.ktor.client.HttpClient",
+                "A.kt:6: import java.net.http.HttpClient",
+                "A.kt:7: val w = WebView(ctx)",
+            ),
+            CleartextHttpCheck.violations("A.kt", src),
+        )
+    }
+}

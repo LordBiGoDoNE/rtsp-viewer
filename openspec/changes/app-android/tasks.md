@@ -27,8 +27,10 @@ usuário com depuração USB.
   `design/tokens.json` (falha com o nome do token inválido), com testes; e a
   verificação de cor literal na UI.
 - [ ] 1.3 Manifesto com as permissões mínimas, backup desligado e
-  `network_security_config` (HTTP só na rede local); app vazio que abre com o
-  tema gerado.
+  `network_security_config` (texto puro liberado, porque o Android não aceita
+  faixas de IP; a restrição à rede local é fechada na 3.5) e a task
+  `checkCleartextHttp`, que recusa cliente HTTP em `app` e `core` (só o
+  `onvif` usa HTTP); app vazio que abre com o tema gerado.
 - [ ] 1.4 Assinatura local: `scripts/android-keystore.ps1` (keystore fora do
   repositório) e release assinado por variáveis de ambiente.
 - [ ] 1.5 CI: jobs `android` (lint, testes JVM, cor literal, release sem
@@ -65,7 +67,12 @@ usuário com depuração USB.
   aos do desktop (inclusive senha nunca em texto puro).
 - [ ] 3.5 `app/infrastructure`: adaptadores das portas `CameraDiscovery` e
   `StreamResolver`, interfaces pelo `ConnectivityManager` (só Wi-Fi e
-  Ethernet) e `MulticastLock` durante a busca.
+  Ethernet) e `MulticastLock` durante a busca. Fecha o requisito "Permissões
+  mínimas" (HTTP sem TLS só para a rede local): guarda que só deixa o ONVIF
+  enviar para endereços privados, link-local ou loopback, conferidos depois da
+  resolução do nome, e sem seguir redirecionamento HTTP; testes que recusam IP
+  público, nome que resolve para IP público e redirecionamento para host
+  público, sem nenhum envio.
 
 ## 4. Player Media3 (`task/app-android/player`, base: grupo 3)
 
