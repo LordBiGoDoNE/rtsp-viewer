@@ -76,7 +76,8 @@ bibliotecas de serialização, como o `core` do desktop.
 
 - `cameras.json` no armazenamento privado do app (`filesDir`), mesmo formato
   versão 1 do desktop (campos `id`, `name`, `url`, `username`,
-  `substream_url`), escrita atômica com `AtomicFile`. Arquivo ilegível:
+  `substream_url`), escrita atômica como no desktop (temporário, sync e
+  rename; ajuste do grupo 2). Arquivo ilegível:
   lista vazia, aviso e original preservado com o sufixo
   `.corrompido-<data e hora>`.
 - Senhas: chave AES-256 no Android Keystore (não exportável, alias

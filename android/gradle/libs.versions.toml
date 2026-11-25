@@ -36,6 +36,7 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-ext-junit" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test" }
+kotlin-test-junit5 = { module = "org.jetbrains.kotlin:kotlin-test-junit5" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
