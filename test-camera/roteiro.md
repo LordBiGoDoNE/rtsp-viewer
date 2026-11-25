@@ -98,6 +98,51 @@ diferença: ela vira achado e é corrigida antes da aprovação.
   o vídeo abriu, a latência percebida e se a decodificação foi por hardware.
   Não envie o endereço nem a senha em issues ou PRs.
 
+## 9. Câmeras na rede (ONVIF, spec descoberta-onvif)
+
+Preparação: em outro terminal, suba o simulador ONVIF, que aponta para a
+câmera falsa e responde à busca na rede (usuário `admin`, senha `admin123`,
+fictícios):
+
+```powershell
+cd desktop; cargo run -p rtsp-viewer-onvif --example fake_onvif -- --port 8099
+```
+
+1. Na lista, "Procurar câmeras". **Esperado:** "Procurando câmeras na rede…" e,
+   em cerca de 3 segundos, "Simulador ONVIF" com o IP e o botão "Adicionar". Se
+   o Windows perguntar sobre o firewall, permita na rede privada.
+2. "Adicionar" → usuário `admin`, senha `admin123` → "Salvar". **Esperado:** a
+   câmera é cadastrada sem você digitar nenhuma URL; abrir mostra o vídeo da
+   câmera falsa. Em "Editar", o endereço mostra a URL RTSP obtida.
+3. "Procurar câmeras" de novo. **Esperado:** o simulador aparece como "Já
+   cadastrada".
+4. "Adicionar câmera" → endereço só com o IP do simulador e a porta
+   (`<ip>:8099`), usuário `admin`, senha errada → "Salvar". **Esperado:**
+   "Consultando a câmera…" e depois "Usuário ou senha inválidos."; nada é
+   salvo.
+5. Endereço `127.0.0.1:9` (nada responde) → "Salvar". **Esperado:** depois da
+   consulta, a tela "Escolha o fabricante" com Tapo, Hikvision,
+   Dahua/Intelbras/Amcrest, Reolink, Uniview e Axis. Escolher "Hikvision" salva
+   com `rtsp://127.0.0.1:9/Streaming/Channels/101`. (Não vai abrir vídeo: é só
+   para conferir a URL montada.)
+6. Durante "Consultando a câmera…", "Cancelar" ou Esc. **Esperado:** volta ao
+   formulário, sem salvar.
+
+**Com a sua Tapo (recomendado):**
+
+1. No app Tapo: câmera → configurações → configurações avançadas → "Conta da
+   câmera". Crie usuário e senha (são os mesmos do RTSP). Confira que o
+   ONVIF está ativo, se o modelo tiver essa opção.
+2. "Procurar câmeras". **Esperado:** a Tapo aparece (nome do modelo ou "Câmera
+   ONVIF") com o IP dela.
+3. "Adicionar" com a conta da câmera. **Esperado:** cadastro sem digitar URL,
+   principal `/stream1` e secundário `/stream2`, e o vídeo abre.
+4. Alternativa: "Adicionar câmera" digitando só o IP (por exemplo
+   `192.168.1.164`). **Esperado:** o app encontra o ONVIF na porta 2020 e
+   cadastra igual.
+5. Anote: se a busca achou a câmera, o tempo de cada etapa e qualquer mensagem
+   inesperada. Não envie IP, usuário ou senha em issues ou PRs.
+
 ## Depois do teste
 
 - Para limpar: apague a pasta indicada em `RTSP_VIEWER_CONFIG_DIR` e, no

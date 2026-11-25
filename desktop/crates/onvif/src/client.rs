@@ -667,11 +667,11 @@ mod tests {
 
     #[test]
     fn url_rtsp_com_host_invalido_ou_credenciais() {
-        let u = sanitize_stream_url("rtsp://0.0.0.0:554/stream1", "192.168.1.120").unwrap();
-        assert_eq!(u.to_string(), "rtsp://192.168.1.120:554/stream1");
+        let u = sanitize_stream_url("rtsp://0.0.0.0:554/stream1", "192.168.1.164").unwrap();
+        assert_eq!(u.to_string(), "rtsp://192.168.1.164:554/stream1");
         let u =
-            sanitize_stream_url("rtsp://admin:segredo@192.168.1.120/s", "192.168.1.120").unwrap();
-        assert_eq!(u.to_string(), "rtsp://192.168.1.120/s");
+            sanitize_stream_url("rtsp://admin:segredo@192.168.1.164/s", "192.168.1.164").unwrap();
+        assert_eq!(u.to_string(), "rtsp://192.168.1.164/s");
         let u = sanitize_stream_url("rtsp://localhost/s", "fe80::1").unwrap();
         assert_eq!(u.to_string(), "rtsp://[fe80::1]/s");
         assert!(matches!(
@@ -686,21 +686,21 @@ mod tests {
         // Outro IP (NAT ou câmera maliciosa) ou nome DNS: host da câmera,
         // esquema, porta e caminho/consulta originais.
         assert_eq!(
-            s("rtsp://203.0.113.7:554/live?ch=1", "192.168.1.120"),
-            "rtsp://192.168.1.120:554/live?ch=1"
+            s("rtsp://203.0.113.7:554/live?ch=1", "192.168.1.164"),
+            "rtsp://192.168.1.164:554/live?ch=1"
         );
         assert_eq!(
-            s("rtsps://camera.example/s", "192.168.1.120"),
-            "rtsps://192.168.1.120/s"
+            s("rtsps://camera.example/s", "192.168.1.164"),
+            "rtsps://192.168.1.164/s"
         );
         assert_eq!(
-            s("rtsp://10.0.0.9:8554", "192.168.1.120"),
-            "rtsp://192.168.1.120:8554"
+            s("rtsp://10.0.0.9:8554", "192.168.1.164"),
+            "rtsp://192.168.1.164:8554"
         );
         // IPv6 nos dois sentidos, com colchetes corretos.
         assert_eq!(
-            s("rtsp://[2001:db8::9]:554/s", "192.168.1.120"),
-            "rtsp://192.168.1.120:554/s"
+            s("rtsp://[2001:db8::9]:554/s", "192.168.1.164"),
+            "rtsp://192.168.1.164:554/s"
         );
         assert_eq!(
             s("rtsp://203.0.113.7:554/s", "fe80::1"),
@@ -713,15 +713,15 @@ mod tests {
         // Host anunciado parecido com o da câmera e repetido no caminho: só
         // a autoridade é trocada.
         assert_eq!(
-            s("rtsp://192.168.1.12/192.168.1.12", "192.168.1.120"),
-            "rtsp://192.168.1.120/192.168.1.12"
+            s("rtsp://192.168.1.12/192.168.1.12", "192.168.1.164"),
+            "rtsp://192.168.1.164/192.168.1.12"
         );
     }
 
     #[test]
     fn servicos_e_caminhos() {
-        let d = DeviceService::for_host("192.168.1.120", 2020);
-        assert_eq!(d.url, "http://192.168.1.120:2020/onvif/device_service");
+        let d = DeviceService::for_host("192.168.1.164", 2020);
+        assert_eq!(d.url, "http://192.168.1.164:2020/onvif/device_service");
         assert_eq!(DeviceService::from_url(&d.url), Some(d.clone()));
         assert_eq!(
             DeviceService::for_host("fe80::1", 80).url,
@@ -783,12 +783,12 @@ mod tests {
         // Outro host (NAT ou câmera maliciosa): host da câmera, porta e
         // caminho do XAddr.
         assert_eq!(
-            m("http://203.0.113.7:8080/onvif/Media", "192.168.1.120").as_deref(),
-            Some("http://192.168.1.120:8080/onvif/Media")
+            m("http://203.0.113.7:8080/onvif/Media", "192.168.1.164").as_deref(),
+            Some("http://192.168.1.164:8080/onvif/Media")
         );
         assert_eq!(
-            m("http://evil.example/x?y=1", "192.168.1.120").as_deref(),
-            Some("http://192.168.1.120:80/x?y=1")
+            m("http://evil.example/x?y=1", "192.168.1.164").as_deref(),
+            Some("http://192.168.1.164:80/x?y=1")
         );
         assert_eq!(
             m("http://u:p@[2001:db8::9]:81/media", "fe80::1").as_deref(),

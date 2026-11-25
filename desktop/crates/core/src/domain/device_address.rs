@@ -117,8 +117,8 @@ mod tests {
 
     #[test]
     fn aceita_ip_nome_e_porta() {
-        let a = DeviceAddress::parse(" 192.168.1.120 ").unwrap();
-        assert_eq!((a.host(), a.port()), ("192.168.1.120", None));
+        let a = DeviceAddress::parse(" 192.168.1.164 ").unwrap();
+        assert_eq!((a.host(), a.port()), ("192.168.1.164", None));
         let a = DeviceAddress::parse("Cam-Portao.local:2020").unwrap();
         assert_eq!((a.host(), a.port()), ("cam-portao.local", Some(2020)));
         assert_eq!(a.to_string(), "cam-portao.local:2020");
@@ -143,7 +143,7 @@ mod tests {
         ] {
             assert!(DeviceAddress::parse(s).is_err(), "{s}");
         }
-        for s in ["192.168.1.120:abc", "h:0", "h:70000", "h:", "[::1]x"] {
+        for s in ["192.168.1.164:abc", "h:0", "h:70000", "h:", "[::1]x"] {
             assert_eq!(
                 DeviceAddress::parse(s),
                 Err(AddressError::InvalidPort),
@@ -155,8 +155,8 @@ mod tests {
     #[test]
     fn host_de_url_de_servico() {
         assert_eq!(
-            host_of_service_url("http://192.168.1.120:2020/onvif/device_service").as_deref(),
-            Some("192.168.1.120")
+            host_of_service_url("http://192.168.1.164:2020/onvif/device_service").as_deref(),
+            Some("192.168.1.164")
         );
         assert_eq!(
             host_of_service_url("http://[fe80::1]:80/x").as_deref(),

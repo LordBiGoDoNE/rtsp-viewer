@@ -77,14 +77,14 @@ mod tests {
 
     #[test]
     fn hikvision_monta_principal_e_secundario() {
-        let (m, s) = Vendor::Hikvision.stream_urls(&addr("192.168.1.120"));
+        let (m, s) = Vendor::Hikvision.stream_urls(&addr("192.168.1.164"));
         assert_eq!(
             m.to_string(),
-            "rtsp://192.168.1.120:554/Streaming/Channels/101"
+            "rtsp://192.168.1.164:554/Streaming/Channels/101"
         );
         assert_eq!(
             s.unwrap().to_string(),
-            "rtsp://192.168.1.120:554/Streaming/Channels/102"
+            "rtsp://192.168.1.164:554/Streaming/Channels/102"
         );
     }
 

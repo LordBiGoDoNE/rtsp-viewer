@@ -337,16 +337,16 @@ mod tests {
     fn secundario_ida_e_volta() {
         let dir = temp_dir();
         let repo = JsonCameraRepository::new(&dir);
-        let mut cam = camera("Portão", "rtsp://192.168.1.120:554/stream1", Some("admin"));
+        let mut cam = camera("Portão", "rtsp://192.168.1.164:554/stream1", Some("admin"));
         cam.change_substream(Some(
-            RtspUrl::parse("rtsp://192.168.1.120:554/stream2")
+            RtspUrl::parse("rtsp://192.168.1.164:554/stream2")
                 .unwrap()
                 .url,
         ))
         .unwrap();
         repo.save(std::slice::from_ref(&cam)).unwrap();
         let text = fs::read_to_string(repo.path()).unwrap();
-        assert!(text.contains("\"substream_url\": \"rtsp://192.168.1.120:554/stream2\""));
+        assert!(text.contains("\"substream_url\": \"rtsp://192.168.1.164:554/stream2\""));
         assert_eq!(repo.load().unwrap().cameras, [cam]);
         fs::remove_dir_all(dir).ok();
     }
@@ -386,7 +386,7 @@ mod tests {
         let repo = JsonCameraRepository::new(&dir);
         fs::write(
             repo.path(),
-            r#"{"version":1,"cameras":[{"id":"6f1c2a9e-1d55-4d3c-9b6c-0d0b9d7c2f11","name":"A","url":"rtsp://192.168.1.120/s1","substream_url":"rtsp://192.168.1.121/s2"}]}"#,
+            r#"{"version":1,"cameras":[{"id":"6f1c2a9e-1d55-4d3c-9b6c-0d0b9d7c2f11","name":"A","url":"rtsp://192.168.1.164/s1","substream_url":"rtsp://192.168.1.121/s2"}]}"#,
         )
         .unwrap();
         let loaded = repo.load().unwrap();
@@ -394,7 +394,7 @@ mod tests {
         assert_eq!(loaded.cameras.len(), 1);
         assert_eq!(
             loaded.cameras[0].url().to_string(),
-            "rtsp://192.168.1.120/s1"
+            "rtsp://192.168.1.164/s1"
         );
         assert!(loaded.cameras[0].substream().is_none());
         fs::remove_dir_all(dir).ok();

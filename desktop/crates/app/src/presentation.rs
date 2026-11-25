@@ -181,8 +181,8 @@ mod tests {
         assert_eq!(found_name(Some("  ")), "Câmera ONVIF");
         assert_eq!(found_name(None), "Câmera ONVIF");
         assert_eq!(
-            fallback_name(&DeviceAddress::parse("192.168.1.120").unwrap()),
-            "Câmera 192.168.1.120"
+            fallback_name(&DeviceAddress::parse("192.168.1.164").unwrap()),
+            "Câmera 192.168.1.164"
         );
         let long = format!("{}.local", "a".repeat(80));
         assert_eq!(

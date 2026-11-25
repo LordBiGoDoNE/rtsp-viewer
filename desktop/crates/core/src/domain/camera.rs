@@ -222,10 +222,10 @@ mod tests {
     fn cam_com_secundario() -> Camera {
         let mut c = Camera::new(
             CameraName::parse("A").unwrap(),
-            url("rtsp://192.168.1.120:554/stream1"),
+            url("rtsp://192.168.1.164:554/stream1"),
             None,
         );
-        c.change_substream(Some(url("rtsp://192.168.1.120:554/stream2")))
+        c.change_substream(Some(url("rtsp://192.168.1.164:554/stream2")))
             .unwrap();
         c
     }
@@ -239,7 +239,7 @@ mod tests {
         );
         assert_eq!(
             c.substream().unwrap().to_string(),
-            "rtsp://192.168.1.120:554/stream2"
+            "rtsp://192.168.1.164:554/stream2"
         );
         assert!(c.change_substream(None).is_ok());
         assert!(c.substream().is_none());
@@ -259,7 +259,7 @@ mod tests {
     fn trocar_url_principal_descarta_secundario() {
         // Mesmo host, outro caminho.
         let mut c = cam_com_secundario();
-        c.change_url(url("rtsp://192.168.1.120:554/h264"));
+        c.change_url(url("rtsp://192.168.1.164:554/h264"));
         assert!(c.substream().is_none());
         // Outro host.
         let mut c = cam_com_secundario();
@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn mesma_url_principal_mantem_secundario() {
         let mut c = cam_com_secundario();
-        c.change_url(url("rtsp://192.168.1.120:554/stream1"));
+        c.change_url(url("rtsp://192.168.1.164:554/stream1"));
         assert!(c.substream().is_some());
     }
 

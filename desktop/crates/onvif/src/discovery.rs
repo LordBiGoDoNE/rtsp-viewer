@@ -485,24 +485,24 @@ mod tests {
     }
 
     fn lan() -> IpAddr {
-        "192.168.1.120".parse().unwrap()
+        "192.168.1.164".parse().unwrap()
     }
 
     #[test]
     fn le_probe_match_tapo() {
         let r = reply(
             ID,
-            "urn:uuid:3fa1fe68-b915-4053-a3e1-c006c3afec0e",
-            "http://192.168.1.120:2020/onvif/device_service",
+            "urn:uuid:aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+            "http://192.168.1.164:2020/onvif/device_service",
             "onvif://www.onvif.org/name/TP-IPC onvif://www.onvif.org/hardware/C200 onvif://www.onvif.org/Profile/Streaming",
         );
         let d = parse_probe_match(r.as_bytes(), ID, lan()).unwrap();
-        assert_eq!(d.endpoint, "urn:uuid:3fa1fe68-b915-4053-a3e1-c006c3afec0e");
+        assert_eq!(d.endpoint, "urn:uuid:aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee");
         assert_eq!(
             d.device_url,
-            "http://192.168.1.120:2020/onvif/device_service"
+            "http://192.168.1.164:2020/onvif/device_service"
         );
-        assert_eq!(d.host, "192.168.1.120");
+        assert_eq!(d.host, "192.168.1.164");
         assert_eq!(d.name.as_deref(), Some("TP-IPC"));
         assert_eq!(d.hardware.as_deref(), Some("C200"));
     }
@@ -512,14 +512,14 @@ mod tests {
         let r = reply(
             ID,
             "urn:a",
-            "https://192.168.1.120/onvif/device_service http://10.0.0.9/onvif/device_service http://[fe80::1]/x http://192.168.1.120/onvif/device_service",
+            "https://192.168.1.164/onvif/device_service http://10.0.0.9/onvif/device_service http://[fe80::1]/x http://192.168.1.164/onvif/device_service",
             "",
         );
         assert_eq!(
             parse_probe_match(r.as_bytes(), ID, lan())
                 .unwrap()
                 .device_url,
-            "http://192.168.1.120/onvif/device_service"
+            "http://192.168.1.164/onvif/device_service"
         );
         // Resposta chegou por outra interface: o host é o anunciado.
         let r = reply(
@@ -533,7 +533,7 @@ mod tests {
         let so_https = reply(
             ID,
             "urn:a",
-            "https://192.168.1.120/onvif/device_service",
+            "https://192.168.1.164/onvif/device_service",
             "",
         );
         assert!(parse_probe_match(so_https.as_bytes(), ID, lan()).is_none());
@@ -544,7 +544,7 @@ mod tests {
         let r = reply(
             ID,
             "urn:a",
-            "http://192.168.1.120/x",
+            "http://192.168.1.164/x",
             "onvif://www.onvif.org/name/Port%C3%A3o_Frente onvif://www.onvif.org/hardware/DS-2CD",
         );
         assert_eq!(
@@ -557,7 +557,7 @@ mod tests {
         let r = reply(
             ID,
             "urn:a",
-            "http://192.168.1.120/x",
+            "http://192.168.1.164/x",
             "onvif://www.onvif.org/hardware/DS-2CD",
         );
         assert_eq!(
@@ -571,8 +571,8 @@ mod tests {
 
     #[test]
     fn descarta_respostas_invalidas() {
-        let boa = reply(ID, "urn:a", "http://192.168.1.120/x", "");
-        let outra_busca = reply("uuid:outra", "urn:a", "http://192.168.1.120/x", "");
+        let boa = reply(ID, "urn:a", "http://192.168.1.164/x", "");
+        let outra_busca = reply("uuid:outra", "urn:a", "http://192.168.1.164/x", "");
         assert!(parse_probe_match(outra_busca.as_bytes(), ID, lan()).is_none());
         assert!(parse_probe_match(b"<lixo", ID, lan()).is_none());
         assert!(parse_probe_match(&[0xff, 0xfe], ID, lan()).is_none());
@@ -595,8 +595,8 @@ mod tests {
             "http://8.8.8.8/onvif/device_service",
             "http://evil.example/onvif/device_service",
             "http://camera.lan/onvif/device_service",
-            "http://192.168.1.120@evil.com/onvif/device_service",
-            "http://admin:x@192.168.1.120/onvif/device_service",
+            "http://192.168.1.164@evil.com/onvif/device_service",
+            "http://admin:x@192.168.1.164/onvif/device_service",
             "http://[2001:db8::1]/onvif/device_service",
             "http://100.64.0.1/onvif/device_service",
         ] {
@@ -616,15 +616,15 @@ mod tests {
 
     #[test]
     fn limita_dispositivos_distintos() {
-        let from: SocketAddr = "192.168.1.120:3702".parse().unwrap();
+        let from: SocketAddr = "192.168.1.164:3702".parse().unwrap();
         let datagrams = (0..MAX_DEVICES + 50)
             .map(|i| {
-                let r = reply(ID, &format!("urn:d{i}"), "http://192.168.1.120/x", "");
+                let r = reply(ID, &format!("urn:d{i}"), "http://192.168.1.164/x", "");
                 (r.into_bytes(), from)
             })
             // Um já visto depois do limite continua sem duplicar.
             .chain(std::iter::once((
-                reply(ID, "urn:d0", "http://192.168.1.120/x", "").into_bytes(),
+                reply(ID, "urn:d0", "http://192.168.1.164/x", "").into_bytes(),
                 from,
             )));
         let list = collect_devices(datagrams, ID);
@@ -634,9 +634,9 @@ mod tests {
 
     #[test]
     fn triagem_antes_da_fila() {
-        let boa = reply(ID, "urn:a", "http://192.168.1.120/x", "");
+        let boa = reply(ID, "urn:a", "http://192.168.1.164/x", "");
         assert!(worth_queueing(boa.as_bytes(), lan(), ID));
-        let outra = reply("uuid:outra", "urn:a", "http://192.168.1.120/x", "");
+        let outra = reply("uuid:outra", "urn:a", "http://192.168.1.164/x", "");
         assert!(!worth_queueing(outra.as_bytes(), lan(), ID));
         assert!(!worth_queueing(
             boa.as_bytes(),
