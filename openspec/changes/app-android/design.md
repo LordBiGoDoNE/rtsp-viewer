@@ -125,8 +125,9 @@ Mesmo protocolo e mesmas regras do desktop (`descoberta-onvif` D1–D4 e ADR
 
 - SOAP 1.2 via `HttpURLConnection`, sem TLS; prazo total de 10 s por consulta,
   2 s de conexão por chamada, respostas até 256 KiB.
-- XML com parser StAX (`XMLInputFactory`) sem DTD nem entidades externas,
-  profundidade limitada, parse por nome local.
+- XML com parser da plataforma sem DTD nem entidades externas, profundidade
+  limitada, parse por nome local (SAX, não StAX: ver os ajustes do grupo 3
+  abaixo).
 - WS-UsernameToken PasswordDigest com compensação do relógio da câmera e HTTP
   Digest (MD5, `qop=auth`) na repetição após 401.
 - Sondagem das portas 80, 2020, 8000, 8080 e 8899 em paralelo quando o
@@ -144,6 +145,27 @@ Mesmo protocolo e mesmas regras do desktop (`descoberta-onvif` D1–D4 e ADR
   Ethernet; nos testes, a lista é injetada.
 - A busca segura um `WifiManager.MulticastLock` só enquanto dura e o solta ao
   terminar ou cancelar.
+
+Ajustes do grupo 3:
+
+- XML pelo SAX de `javax.xml.parsers`, não pelo StAX: o `javax.xml.stream`
+  não existe no Android (conferido no `android.jar` das plataformas 36 e
+  37.2). Documento com `DOCTYPE` é recusado antes do parse (sem DTD não há
+  entidade declarada nem externa); as features de entidade externa e
+  `disallow-doctype-decl` são ligadas onde a plataforma as reconhece;
+  profundidade até 64 e parse por nome local, sem exigir prefixo declarado.
+- O host da câmera é resolvido uma vez por consulta por um `HostResolver`
+  injetado no cliente, e todas as chamadas HTTP da consulta vão ao IP
+  devolvido (sem nova consulta DNS); a URL RTSP continua com o host da câmera
+  (o nome digitado). No app, o `LocalNetworkResolver` aplica a regra do D8 e
+  do ADR 0006: nome ou IP que não resolve para endereço privado, link-local
+  ou loopback vira "A câmera não respondeu: <host> não é um endereço da rede
+  local..." sem nada enviado. Efeito colateral: o cabeçalho `Host` leva o IP.
+- `HttpURLConnection` sem proxy (`Proxy.NO_PROXY`: o proxy do Wi-Fi não
+  recebe o tráfego da câmera) e sem redirecionamento; o prazo total vale
+  também na leitura (um vigia desconecta no prazo).
+- Cada socket da busca é preso à rede dele (`Network.bindSocket`), para o
+  envio não sair pela rede padrão (dados móveis ou VPN).
 
 ### D5. UI em Compose
 
