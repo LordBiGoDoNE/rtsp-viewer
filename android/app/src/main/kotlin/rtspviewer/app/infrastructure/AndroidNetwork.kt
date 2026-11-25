@@ -12,7 +12,16 @@ import rtspviewer.core.application.CameraDiscovery
 import rtspviewer.onvif.Ipv4Interface
 
 /**
- * Redes Wi-Fi e Ethernet ativas, lidas do `ConnectivityManager` (endereço IPv4
+ * Rede em que a busca procura câmeras: Wi-Fi ou Ethernet, nunca VPN. Uma VPN
+ * herda os transportes das redes por baixo dela (aparece como Wi-Fi), então
+ * também é recusada a rede sem `NET_CAPABILITY_NOT_VPN`; senão o endereço do
+ * túnel entraria na busca e os Probes iriam para a sub-rede remota.
+ */
+internal fun isLocalSearchNetwork(wifi: Boolean, ethernet: Boolean, vpnTransport: Boolean, notVpn: Boolean): Boolean =
+    (wifi || ethernet) && !vpnTransport && notVpn
+
+/**
+ * Redes Wi-Fi e Ethernet ativas (sem VPN; [isLocalSearchNetwork]), lidas do `ConnectivityManager` (endereço IPv4
  * e prefixo das `LinkProperties`; design D4). Cada socket da busca fica preso
  * à rede dele, para o envio não sair pela rede padrão (dados móveis, VPN).
  *
@@ -30,8 +39,12 @@ class ConnectivityNetworkInterfaces(context: Context) : NetworkInterfaces {
         val networks = cm.allNetworks
         for (network in networks) {
             val caps = cm.getNetworkCapabilities(network) ?: continue
-            val local = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+            val local = isLocalSearchNetwork(
+                wifi = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI),
+                ethernet = caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET),
+                vpnTransport = caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
+                notVpn = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN),
+            )
             if (!local) continue
             val links = cm.getLinkProperties(network)?.linkAddresses ?: continue
             for (link in links) {
