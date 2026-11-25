@@ -4,7 +4,7 @@ Client leve para câmeras RTSP no Windows, Linux e Android: simples, rápido par
 
 ## Estado
 
-Desktop (Windows e Linux): primeira versão entregue em 2026-11-24 (spec `mvp-desktop-rtsp`). Ela cobre a lista de câmeras e a visualização de uma câmera com tela cheia. Os pacotes saem só como artefatos do CI; nada foi publicado. Antes de distribuir, falta resolver a issue #7 (avisos de licença). O Android ainda não começou.
+Desktop (Windows e Linux): primeira versão entregue em 2026-11-24 (spec `mvp-desktop-rtsp`). Ela cobre a lista de câmeras e a visualização de uma câmera com tela cheia. Os pacotes saem só como artefatos do CI; nada foi publicado. Em 2026-11-25 entrou a descoberta ONVIF (spec `descoberta-onvif`): busca de câmeras na rede e cadastro só com IP, usuário e senha. Antes de distribuir, falta resolver a issue #7 (avisos de licença). O Android ainda não começou.
 
 ## Stack
 
@@ -18,7 +18,7 @@ As duas interfaces compartilham a mesma identidade visual, definida em `design/`
 ## Funcionalidades previstas
 
 1. Lista de câmeras e visualização em tela cheia (desktop). **Entregue.**
-2. Descoberta de câmeras na rede e cadastro só com IP, usuário e senha (ONVIF).
+2. Descoberta de câmeras na rede e cadastro só com IP, usuário e senha (ONVIF, desktop). **Entregue.**
 3. App Android com o mesmo escopo.
 4. Grade com várias câmeras.
 5. Snapshot e gravação.
@@ -34,7 +34,7 @@ Os pacotes saem como artefatos do CI (workflow "CI"). Não há releases publicad
 
 A lista de câmeras fica no diretório de configuração do usuário (`%APPDATA%\rtsp-viewer\config` ou `~/.config/rtsp-viewer`). As senhas ficam no cofre do sistema (Gerenciador de Credenciais no Windows, Secret Service no Linux), nunca nesse arquivo. Num Linux sem cofre, a senha é lembrada só até fechar o app.
 
-Câmeras ONVIF: em "Procurar câmeras" o app lista as câmeras da rede (busca de cerca de 3 s, só quando pedida). Também dá para cadastrar digitando só o IP, com usuário e senha: o app pergunta à câmera as URLs dos streams principal e secundário. Sem ONVIF, o app oferece a lista de fabricantes. Na TP-Link Tapo, o usuário e a senha são os da "Conta da câmera" (app Tapo, configurações avançadas) e o ONVIF responde na porta 2020.
+Câmeras ONVIF: em "Procurar câmeras" o app lista as câmeras da rede (busca de cerca de 3 s, só quando pedida, por multicast e também direto a cada endereço da sub-rede privada, porque algumas câmeras só respondem assim). Também dá para cadastrar digitando só o IP, com usuário e senha: o app pergunta à câmera as URLs dos streams principal e secundário. Sem ONVIF, o app oferece a lista de fabricantes. Na TP-Link Tapo, o usuário e a senha são os da "Conta da câmera" (app Tapo, configurações avançadas) e o ONVIF responde na porta 2020.
 
 Atalhos: Enter abre a câmera selecionada; F11 ou duplo clique alternam a tela cheia; Esc sai da tela cheia e volta à lista.
 
@@ -51,7 +51,7 @@ Máquina de referência: Windows 11 do desenvolvedor, build release do pacote `.
 | Primeira imagem, câmera falsa local, quadro-chave a cada 1 s | H.264, 25 aberturas: mediana de 0,86 a 1,05 s (mínimo 0,5 s); H.265: até 2,2 s nos piores casos, incluindo até 1 s de espera pelo quadro-chave | até 2 s, sem contar a espera pelo quadro-chave da câmera |
 | Latência com a câmera falsa (relógio na imagem contra o relógio do sistema) | cerca de 0,1 s | até 1 s |
 | Pacote Windows `.zip` | 59,4 MB compactado (135 MB extraído; o ONVIF somou 0,3 MB) | até 30 MB |
-| Busca de câmeras na rede (WS-Discovery, simulador ONVIF) | 3,0 a 3,1 s | cerca de 3 s |
+| Busca de câmeras na rede (WS-Discovery, simulador ONVIF e câmera real na LAN) | 3,0 a 3,1 s | cerca de 3 s |
 | Consulta ONVIF só com o IP, sondando as portas usuais | 0,12 a 0,15 s | |
 | Pacote Linux `.deb` | ver o artefato do CI (o FFmpeg vem da distribuição) | |
 | Decodificação | D3D11VA no Windows (hardware), com fallback para software | |

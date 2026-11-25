@@ -20,12 +20,13 @@ context: |
   Senhas de câmeras são segredos: nunca em texto puro em arquivos de
   configuração nem em logs.
   Estado entregue: mvp-desktop-rtsp (lista de câmeras e visualização RTSP no
-  desktop; specs vigentes camera-registry, live-view, design-tokens e
-  desktop-distribution). O crate onvif ainda não existe.
+  desktop) e descoberta-onvif (busca de câmeras na rede e cadastro só com IP,
+  usuário e senha, no desktop; crate onvif, ADR 0005). Specs vigentes:
+  camera-registry, live-view, design-tokens, desktop-distribution e
+  camera-discovery.
   Sequência prevista das próximas specs (ordem decidida pelo usuário em
-  2026-11-24): descoberta-onvif (busca na rede e cadastro só com IP, usuário e
-  senha), app-android, grade-multi-camera, snapshot-e-gravacao. A sequência não
-  autoriza spec nem implementação.
+  2026-11-24): app-android, grade-multi-camera, snapshot-e-gravacao. A
+  sequência não autoriza spec nem implementação.
   Processo (épicas, tarefas, PRs, issue, autorização, revisão, teste local,
   hotfix, deploy): regras globais em ~/.claude/rules e AGENTS.md, nessa precedência.
   Tarefas de cada spec são organizadas em grupos coesos (autorização conforme
