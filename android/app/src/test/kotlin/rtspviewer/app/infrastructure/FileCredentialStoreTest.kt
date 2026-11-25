@@ -8,6 +8,7 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -50,6 +51,36 @@ class ProviderFailingCipher : SecretCipher {
     override fun seal(plain: ByteArray, aad: ByteArray): Sealed = throw ProviderException("Keystore operation failed")
 
     override fun open(sealed: Sealed, aad: ByteArray): ByteArray = throw ProviderException("Keystore operation failed")
+}
+
+/** Chaves em software no lugar do Keystore, com chave inutilizável simulada. */
+class FakeKeys : CipherKeys {
+    var current: SecretKey? = null
+    var lookupFails = false
+    var generated = 0
+    var deleted = 0
+
+    override fun existing(): SecretKey? {
+        if (lookupFails) throw ProviderException("Keystore operation failed")
+        return current
+    }
+
+    override fun generate(): SecretKey = SoftwareCipher.newKey().also {
+        current = it
+        lookupFails = false
+        generated++
+    }
+
+    override fun delete() {
+        current = null
+        lookupFails = false
+        deleted++
+    }
+
+    /** Chave presente, mas que o provedor recusa (`Cipher.init` falha). */
+    fun breakKey() {
+        current = SecretKeySpec(ByteArray(7), "AES")
+    }
 }
 
 class FileCredentialStoreTest {
@@ -159,6 +190,68 @@ class FileCredentialStoreTest {
         }
         assertEquals(listOf(err.id), catalog.cameras.map { it.id })
         assertEquals(listOf(err.id), JsonCameraRepository(dir).load().cameras.map { it.id })
+    }
+
+    @Test
+    fun chaveInutilizavelETrocadaAoGravarESenhaDigitadaFica() {
+        val keys = FakeKeys()
+        val s = store(KeystoreSecretCipher(keys))
+        val id = CameraId.generate()
+        s.set(id, Password("antiga"))
+        assertEquals(1, keys.generated)
+        assertEquals("antiga", s.get(id)!!.expose())
+
+        keys.breakKey() // chave invalidada pelo sistema
+        assertNull(s.get(id))
+        s.set(id, Password("nova"))
+        assertEquals(1, keys.deleted)
+        assertEquals(2, keys.generated)
+        assertEquals("nova", s.get(id)!!.expose())
+    }
+
+    @Test
+    fun falhaAoLerAChaveETrocadaAoGravar() {
+        val keys = FakeKeys()
+        val s = store(KeystoreSecretCipher(keys))
+        val id = CameraId.generate()
+        s.set(id, Password("antiga"))
+        keys.lookupFails = true
+        assertNull(s.get(id))
+        s.set(id, Password("nova"))
+        assertEquals(1, keys.deleted)
+        assertEquals("nova", s.get(id)!!.expose())
+    }
+
+    @Test
+    fun chaveBoaNaoETrocada() {
+        val keys = FakeKeys()
+        val s = store(KeystoreSecretCipher(keys))
+        s.set(CameraId.generate(), Password("a"))
+        s.set(CameraId.generate(), Password("b"))
+        assertEquals(1, keys.generated)
+        assertEquals(0, keys.deleted)
+    }
+
+    @Test
+    fun senhaQueNaoDecifraEPedidaEAbreACamera() {
+        val dir = Files.createTempDirectory("rtsp-viewer-cred").toFile().also { dirs += it }
+        val keys = FakeKeys()
+        val (catalog, _) = CameraCatalog.load(JsonCameraRepository(dir), FileCredentialStore(dir, KeystoreSecretCipher(keys)))
+        val id = catalog.add(
+            CameraDraft(
+                name = "Garagem",
+                url = "rtsp://192.168.0.10:554/stream1",
+                username = "admin",
+                password = PasswordInput.Set(Password("s3gr3do")),
+            ),
+        )
+        keys.breakKey()
+        assertFailsWith<CatalogError.NeedsPassword> { catalog.connectionRequest(id) }
+        val req = catalog.connectionRequest(id, Password("s3gr3do"))
+        assertEquals("rtsp://admin:s3gr3do@192.168.0.10:554/stream1", req.url.expose())
+        assertEquals(listOf(id), catalog.cameras.map { it.id })
+        // Próxima abertura usa a senha guardada com a chave nova.
+        assertEquals(req.url.expose(), catalog.connectionRequest(id).url.expose())
     }
 
     @Test
