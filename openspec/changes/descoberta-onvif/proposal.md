@@ -23,8 +23,9 @@ só procura câmeras quando o usuário pedir.
     `GetCapabilities`, `GetProfiles` e `GetStreamUri`;
   - autenticação WS-UsernameToken (PasswordDigest), com compensação do relógio
     da câmera, e HTTP Digest quando a câmera exigir;
-  - WS-Discovery: busca multicast em todas as interfaces de rede, por cerca de
-    3 s, só quando o usuário pede.
+  - WS-Discovery: busca multicast em todas as interfaces de rede, mais o
+    mesmo Probe por unicast aos hosts da sub-rede privada de cada uma (câmeras
+    que ignoram multicast), por cerca de 3 s, só quando o usuário pede.
 - `core`:
   - porta `CameraDiscovery` e porta `StreamResolver`;
   - lista de fabricantes com os caminhos RTSP conhecidos;

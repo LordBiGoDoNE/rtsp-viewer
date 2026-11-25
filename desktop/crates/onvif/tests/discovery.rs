@@ -15,6 +15,7 @@ fn config(port: u16) -> DiscoveryConfig {
         duration: Duration::from_millis(800),
         target: SocketAddrV4::new(Ipv4Addr::LOCALHOST, port),
         interfaces: Some(vec![Ipv4Addr::LOCALHOST]),
+        unicast: None,
     }
 }
 
@@ -135,6 +136,55 @@ fn sem_respostas_termina_no_prazo() {
         "{:?}",
         t.elapsed()
     );
+}
+
+/// Câmera que ignora o multicast (como a Tapo C320WS) e só responde ao Probe
+/// unicast: o destino "multicast" é uma porta muda e a câmera só é alcançada
+/// pela varredura unicast.
+#[test]
+fn encontra_camera_que_so_responde_a_unicast() {
+    let mudo = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+    let camera = start_discovery_responder("127.0.0.1:0", &[], "127.0.0.1", vec![tapo()]);
+    // Outros destinos da varredura, sem ninguém escutando (ICMP de porta
+    // inacessível; no Windows, ConnectionReset na recepção).
+    let vazios: Vec<std::net::UdpSocket> = (0..200)
+        .map(|_| std::net::UdpSocket::bind("127.0.0.1:0").unwrap())
+        .collect();
+    let mut alvos: Vec<SocketAddrV4> = vazios
+        .iter()
+        .map(|s| SocketAddrV4::new(Ipv4Addr::LOCALHOST, s.local_addr().unwrap().port()))
+        .collect();
+    drop(vazios);
+    alvos.insert(
+        100,
+        SocketAddrV4::new(Ipv4Addr::LOCALHOST, camera.addr.port()),
+    );
+    let cfg = DiscoveryConfig {
+        unicast: Some(alvos),
+        ..config(mudo.local_addr().unwrap().port())
+    };
+    let t = Instant::now();
+    let found = discover(&cfg).unwrap();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].endpoint, "urn:uuid:tapo-1");
+    assert!(
+        t.elapsed() < Duration::from_millis(1500),
+        "{:?}",
+        t.elapsed()
+    );
+}
+
+/// A mesma câmera responde ao multicast e ao unicast: uma única entrada.
+#[test]
+fn multicast_e_unicast_da_mesma_camera_deduplicam() {
+    let camera = start_discovery_responder("127.0.0.1:0", &[], "127.0.0.1", vec![tapo()]);
+    let port = camera.addr.port();
+    let cfg = DiscoveryConfig {
+        unicast: Some(vec![SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)]),
+        ..config(port)
+    };
+    let found = discover(&cfg).unwrap();
+    assert_eq!(found.len(), 1, "{found:?}");
 }
 
 #[test]
