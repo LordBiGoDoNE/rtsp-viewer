@@ -102,15 +102,29 @@ consulta (até seis chamadas) e subiu para 10 s para acomodar câmeras lentas
   `dn:NetworkVideoTransmitter`, enviado por cada interface IPv4 ativa e não
   loopback (`if-addrs` + `socket2` com `IP_MULTICAST_IF`), com TTL 1. Escuta por
   3 s.
+- O mesmo Probe (mesmo `MessageID` e socket) também vai por unicast para
+  `<host>:3702` de cada host da sub-rede de cada interface, porque há câmeras
+  que ignoram o multicast (ex.: TP-Link Tapo C320WS, que só responde ao
+  unicast) e redes ou Wi-Fi que não o repassam. Regras: só interfaces com
+  endereço privado (RFC 1918; nada de link-local, loopback ou público); a
+  sub-rede real com prefixo /24 ou mais longo, senão só o /24 do endereço;
+  sem rede, broadcast nem endereços da própria máquina; no máximo 254 por
+  interface e 1024 no total. O envio corre numa thread por interface, em
+  lotes de 32 com 2 ms de pausa, depois de a escuta começar e só até o fim
+  dos 3 s; o buffer de envio vai a 256 KiB porque datagramas à espera de ARP
+  o ocupam (no Windows, com o padrão de 64 KiB, o envio travava ~2,5 s).
 - Respostas aceitas só se forem ProbeMatch com o `RelatesTo` igual ao
   `MessageID` do probe, até 64 KiB, e de endereço privado ou link-local. O
-  resultado é deduplicado pelo `EndpointReference`.
-- Do ProbeMatch saem os `XAddrs` (só `http`, preferindo o IPv4 de onde veio a
-  resposta) e o nome sugerido, a partir dos scopes `onvif://www.onvif.org/name/`
-  e `hardware/`.
+  resultado é deduplicado pelo `EndpointReference`, com no máximo 256
+  dispositivos; a fila de recepção guarda no máximo 64 respostas e descarta o
+  excedente (ADR 0005).
+- Do ProbeMatch saem os `XAddrs` (só `http` com host IP literal privado,
+  link-local ou loopback e sem `user@`, preferindo o IP de onde veio a
+  resposta; sem nenhum aceito, o ProbeMatch é descartado) e o nome sugerido, a
+  partir dos scopes `onvif://www.onvif.org/name/` e `hardware/`.
 - Câmeras já cadastradas, pelo mesmo host, aparecem como "Já cadastrada".
-- A porta da busca é testável: o destino do probe é injetável, e o simulador
-  responde por unicast em loopback nos testes.
+- A porta da busca é testável: os destinos do probe (multicast e unicast) são
+  injetáveis, e o simulador responde por unicast em loopback nos testes.
 
 ### D5. Fabricantes
 

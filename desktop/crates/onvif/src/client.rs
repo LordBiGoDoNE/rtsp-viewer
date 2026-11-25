@@ -63,17 +63,48 @@ pub struct DeviceService {
 }
 
 impl DeviceService {
+    /// Lê `http://host[:porta][/caminho]`. Recusa (`None`) o que pode levar a
+    /// conexão a um host diferente do `host` devolvido: credenciais embutidas
+    /// (`user@host`, em que o destino real é o que vem depois do `@`), host
+    /// com caracteres fora de nome/IPv4, IPv6 entre colchetes ilegível e
+    /// porta inválida (ADR 0005).
     pub fn from_url(url: &str) -> Option<Self> {
         let rest = url.strip_prefix("http://")?;
-        let authority = rest.split('/').next()?;
-        let host = if let Some(v6) = authority.strip_prefix('[') {
-            v6.split(']').next()?.to_string()
-        } else {
-            authority.split(':').next()?.to_string()
+        let authority = match rest.find(['/', '?', '#']) {
+            Some(i) => &rest[..i],
+            None => rest,
         };
-        (!host.is_empty()).then(|| Self {
+        if authority.contains('@') {
+            return None;
+        }
+        let (host, port) = if let Some(v6) = authority.strip_prefix('[') {
+            let (inner, after) = v6.split_once(']')?;
+            inner.parse::<std::net::Ipv6Addr>().ok()?;
+            let port = match after {
+                "" => None,
+                p => Some(p.strip_prefix(':')?),
+            };
+            (inner, port)
+        } else {
+            match authority.split_once(':') {
+                Some((h, p)) => (h, Some(p)),
+                None => (authority, None),
+            }
+        };
+        if let Some(p) = port {
+            p.parse::<u16>().ok().filter(|p| *p != 0)?;
+        }
+        let valid_name = |h: &str| {
+            !h.is_empty()
+                && h.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        };
+        if !host.contains(':') && !valid_name(host) {
+            return None;
+        }
+        Some(Self {
             url: url.to_string(),
-            host,
+            host: host.to_string(),
         })
     }
 
@@ -702,6 +733,35 @@ mod tests {
                 .host,
             "fe80::1"
         );
+        assert_eq!(
+            DeviceService::from_url("http://cam.lan?x").unwrap().host,
+            "cam.lan"
+        );
+        // `@` depois de `?` ou `#` já não é authority (RFC 3986): o host é o
+        // que vem antes, o mesmo a que o HTTP conecta.
+        for u in [
+            "http://192.168.1.5?@evil.com/x",
+            "http://192.168.1.5#@evil.com/x",
+        ] {
+            assert_eq!(DeviceService::from_url(u).unwrap().host, "192.168.1.5");
+        }
+        // Credenciais embutidas, host ou porta ilegíveis: a conexão poderia ir
+        // a outro destino que não o `host` devolvido.
+        for bad in [
+            "http://192.168.1.5@evil.com/x",
+            "http://user:pass@192.168.1.5/x",
+            "http://[fe80::1]@evil.com/x",
+            "http://[fe80::zz]/x",
+            "http://[fe80::1]x/x",
+            "http://192.168.1.5:99999/x",
+            "http://192.168.1.5:0/x",
+            "http://192.168.1.5:ab/x",
+            "http://evil.com\\@192.168.1.5/x",
+            "http:///x",
+            "https://192.168.1.5/x",
+        ] {
+            assert_eq!(DeviceService::from_url(bad), None, "{bad}");
+        }
         assert_eq!(
             path_of("http://h:80/onvif/media_service"),
             "/onvif/media_service"

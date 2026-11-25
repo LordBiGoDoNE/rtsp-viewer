@@ -48,7 +48,29 @@ Requisitos permanentes: leve, simples, sem rede no boot.
     porta e o caminho/consulta devolvidos, e o host é sempre o da câmera.
     A senha do cadastro vai embutida ao abrir o stream; seguir o host
     anunciado a entregaria a qualquer host (inclusive fora da LAN);
+  - na busca, o `XAddr` do ProbeMatch vira o destino das credenciais no
+    cadastro. Só vale `http://` com host IP literal privado, link-local ou
+    loopback (o mesmo critério da origem do datagrama), sem credenciais
+    embutidas (`user@host`); nome DNS, IP público ou `@` na authority são
+    descartados, e o ProbeMatch sem nenhum `XAddr` aceito é ignorado. URL de
+    serviço de dispositivo com `@` na authority, host ou porta ilegíveis é
+    recusada para qualquer chamador. Um host da LAN ainda pode anunciar o IP
+    de outro dispositivo da LAN; isso não desvia as credenciais para fora
+    dela;
+  - a busca enfileira no máximo 64 respostas (as excedentes são descartadas,
+    após uma triagem barata por origem e `MessageID`) e lista no máximo 256
+    dispositivos distintos, para um flood na LAN não consumir memória sem
+    limite;
   - cada consulta tem prazo total (10 s), repartido entre as chamadas dela.
+- A busca envia o Probe por multicast e também por unicast a cada host da
+  sub-rede privada (RFC 1918) de cada interface: há câmeras que ignoram o
+  multicast (a TP-Link Tapo C320WS só responde ao unicast) e redes que não o
+  repassam. A varredura fica limitada ao /24 do endereço quando a rede é
+  maior, a 254 destinos por interface e 1024 no total, dentro dos mesmos 3 s,
+  sem link-local, loopback nem IP público. As respostas passam pela mesma
+  validação acima; quem responde aos dois aparece uma vez (deduplicação por
+  `EndpointReference`). Custo: algumas centenas de datagramas de ~0,6 KiB e
+  consultas ARP na LAN, só quando o usuário pede a busca.
 
 ## Consequências
 
