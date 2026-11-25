@@ -19,24 +19,24 @@ usuário com depuração USB.
 
 ## 1. Fundação Android (`task/app-android/fundacao`, base: épica)
 
-- [ ] 1.1 Projeto Gradle em `android/` (wrapper, catálogo de versões fixas
+- [x] 1.1 Projeto Gradle em `android/` (wrapper, catálogo de versões fixas
   conferidas na documentação atual, módulos `core`, `onvif` e `app`, `minSdk`
   26, `targetSdk` 36, R8 no release); `.gitignore` para `local.properties`,
   `*.jks` e `*.keystore`.
-- [ ] 1.2 `build-logic`: geração do tema do Compose a partir de
+- [x] 1.2 `build-logic`: geração do tema do Compose a partir de
   `design/tokens.json` (falha com o nome do token inválido), com testes; e a
   verificação de cor literal na UI.
-- [ ] 1.3 Manifesto com as permissões mínimas, backup desligado e
+- [x] 1.3 Manifesto com as permissões mínimas, backup desligado e
   `network_security_config` (texto puro liberado, porque o Android não aceita
   faixas de IP; a restrição à rede local é fechada na 3.5) e a task
   `checkCleartextHttp`, que recusa cliente HTTP em `app` e `core` (só o
   `onvif` usa HTTP); app vazio que abre com o tema gerado.
-- [ ] 1.4 Assinatura local: `scripts/android-keystore.ps1` (keystore fora do
+- [x] 1.4 Assinatura local: `scripts/android-keystore.ps1` (keystore fora do
   repositório) e release assinado por variáveis de ambiente.
-- [ ] 1.5 CI: jobs `android` (lint, testes JVM, cor literal, release sem
+- [x] 1.5 CI: jobs `android` (lint, testes JVM, cor literal, release sem
   assinatura como artefato) e `android-device` (emulador com a câmera falsa
   em `10.0.2.2`).
-- [ ] 1.6 ADR 0006 (Android: módulos, bibliotecas e versões, permissões,
+- [x] 1.6 ADR 0006 (Android: módulos, bibliotecas e versões, permissões,
   cofre, assinatura, `targetSdk` 36 e a rede local do Android 17); README
   (desenvolver no Android).
 
