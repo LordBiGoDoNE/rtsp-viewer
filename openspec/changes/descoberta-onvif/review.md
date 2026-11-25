@@ -53,7 +53,7 @@ UI Automation sobre o app extraído do `.zip`, com configuração isolada (`RTSP
 
 - `act`, jobs `desktop-linux` e `openspec`: verdes em cada grupo antes do PR, no topo depois da revisão final (`b88ae7d`) e no topo depois do teste do usuário (`3778505`).
 - `desktop-windows` não roda no `act` (runner Windows): coberto pela execução nativa no Windows (`fmt`, `clippy -D warnings`, `cargo test --workspace` com a câmera falsa) e pelo CI remoto.
-- CI remoto: verde em todos os jobs de #13 a #16 nos heads anteriores ao teste do usuário (#13 também em `48b8e61`). Nos heads depois do teste do usuário (#14 `0de6483`, #15 `c5e0f70`, #16 `50793c6`, #18 `3778505`) os jobs **não foram iniciados** pelo GitHub (pagamento ou limite de gastos da conta); sem resultado de código. Pendente até a cobrança ser regularizada.
+- CI remoto: verde em todos os jobs de #13 a #16 nos heads anteriores ao teste do usuário (#13 também em `48b8e61`). Nos heads depois do teste do usuário (#14 `0de6483`, #15 `c5e0f70`, #16 `50793c6`, #18 `3778505`) os jobs **não foram iniciados** pelo GitHub (pagamento ou limite de gastos da conta). Em 2026-11-25, a pedido do usuário, o repositório passou a público (Actions sem cobrança) e as execuções foram refeitas: `desktop-linux`, `desktop-windows` e `openspec` verdes em #14 `0de6483`, #15 `c5e0f70`, #16 `50793c6` e #18 `670bc8a` (push e pull_request).
 
 ## Teste do usuário (2026-11-24)
 
@@ -61,7 +61,7 @@ UI Automation sobre o app extraído do `.zip`, com configuração isolada (`RTSP
 - **Achado:** "Procurar câmeras" não encontrava a câmera real do usuário (TP-Link Tapo C320WS, ONVIF na porta 2020). Diagnóstico na LAN: a câmera responde ao Probe enviado por unicast a ela, mas nunca ao Probe multicast (3 rodadas, de porta efêmera e da 3702); o firewall do Windows estava desligado.
 - **Decisão do usuário:** além do multicast, enviar o Probe por unicast a cada host da sub-rede privada de cada interface. O requisito não muda; mudam o design D4, a proposta e o ADR 0005.
 - **Correção** no grupo 2 (`0de6483`, `finding-fixer`): varredura só em endereço RFC 1918, /24 do endereço quando a rede é maior, até 254 destinos por interface e 1024 no total, uma thread de envio por interface, buffer de envio de 256 KiB (no Windows o envio travava ~2,6 s após ~100 destinos sem ARP); mesma validação das respostas. Testes: 6 de unidade e 2 de integração (um respondedor só unicast, que falhava antes). Propagado por merge (`c5e0f70`, `50793c6`, `0cb97e9`).
-- **Achado transversal** (apontado pelo `finding-fixer`): o IP real da câmera e um UUID parcialmente real estavam versionados como valores de exemplo. Trocados por valores fictícios no topo (`3778505`, só substituições). Os valores continuam no histórico dos commits anteriores (repositório privado; sem usuário nem senha); o histórico não foi reescrito.
+- **Achado transversal** (apontado pelo `finding-fixer`): o IP real da câmera e um UUID parcialmente real estavam versionados como valores de exemplo. Trocados por valores fictícios no topo (`3778505`, só substituições). Os valores continuam no histórico dos commits anteriores (sem usuário nem senha); o histórico não foi reescrito. O usuário foi avisado disso antes de tornar o repositório público.
 - Reverificação do delta `b88ae7d..3778505` (`spec-reviewer`, Claude Opus 5.5, esforço medium): as duas correções resolvidas, o delta contém só elas; **B5 (baixo)**, envio unicast sem prazo de escrita, na #17.
 - Ponta a ponta no pacote novo: ONVIF 10/10.
 - **Reteste do usuário** com a Tapo no pacote novo: tudo certo.
@@ -77,3 +77,7 @@ UI Automation sobre o app extraído do `.zip`, com configuração isolada (`RTSP
 - Head revisado: `3778505f39eab821f6b113276ad77ef79433f471` (`task/descoberta-onvif/fechamento`).
 - Tree: `fd714d6072c727f4f7b54a648ac1793bf37b38e2`.
 - Entre o head revisado e o estado final da épica, o único arquivo alterado deve ser este `review.md`.
+
+## Aprovação
+
+- Pacote aprovado pelo usuário em 2026-11-25 ("pode seguir com a integração quando o CI passar"), condicionado ao CI remoto verde, que foi confirmado.
