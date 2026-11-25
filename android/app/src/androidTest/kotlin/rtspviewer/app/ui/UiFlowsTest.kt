@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +46,15 @@ class UiFlowsTest {
 
     private fun waitFor(text: String) = compose.waitUntilAtLeastOneExists(hasText(text), TIMEOUT_MS)
 
-    private fun pressBack() = compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
+    /**
+     * "Salvar" fica no fim do formulário rolável: com o teclado aberto (mais
+     * alto no campo de senha, com a barra de sugestões), ele pode sair da área
+     * visível, e um clique sem rolar não chega ao botão. O usuário rola; o
+     * teste também.
+     */
+    private fun clickSave() = compose.onNodeWithText("Salvar").performScrollTo().performClick()
+
+    private fun pressBack() =compose.runOnUiThread { compose.activity.onBackPressedDispatcher.onBackPressed() }
 
     @Test
     fun listaVaziaAdicionarPorUrlEApareceNaLista() {
@@ -55,7 +64,7 @@ class UiFlowsTest {
         compose.onNodeWithText("Nova câmera").assertIsDisplayed()
         compose.onNodeWithTag("campo-nome").performTextInput("Garagem")
         compose.onNodeWithTag("campo-endereco").performTextInput("rtsp://192.168.0.10:554/stream1")
-        compose.onNodeWithText("Salvar").performClick()
+        clickSave()
         waitFor("Garagem")
         compose.onNodeWithText("Câmeras").assertIsDisplayed()
         compose.onNodeWithText("rtsp://192.168.0.10:554/stream1").assertIsDisplayed()
@@ -115,7 +124,7 @@ class UiFlowsTest {
         compose.onNodeWithTag("campo-endereco").performTextInput("192.168.0.10")
         compose.onNodeWithTag("campo-usuario").performTextInput("admin")
         compose.onNodeWithTag("campo-senha").performTextInput("errada")
-        compose.onNodeWithText("Salvar").performClick()
+        clickSave()
         waitFor("Usuário ou senha inválidos.")
         compose.onNodeWithText("Nova câmera").assertIsDisplayed()
         assertTrue(repository.saved.isEmpty())

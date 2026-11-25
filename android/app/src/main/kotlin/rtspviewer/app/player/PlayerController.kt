@@ -58,6 +58,13 @@ interface VideoEngine {
  * reproduzindo, reconectando com espera crescente (1–30 s, reinício após 10 s
  * estáveis) e erro. Falhas que exigem ação do usuário (senha, codec) param sem
  * reconectar. Chamar só na thread principal; [scope] usa o dispatcher dela.
+ *
+ * Primeiro quadro: com o decoder já pronto ([VideoEngine.Listener.onInfo]) e
+ * nenhum quadro em [FIRST_FRAME_TIMEOUT_MS], a reprodução para com
+ * [StreamError.UnsupportedCodec]. É o caso de um stream cujos quadros-chave o
+ * Media3 1.11 não reconhece (H.265 só com CRA, sem IDR; design D3): os dados
+ * chegam, mas são todos descartados à espera de um quadro-chave, e reconectar
+ * não muda isso. Sem esse prazo a tela ficaria em "Conectando" para sempre.
  */
 class PlayerController(
     private val engine: VideoEngine,
@@ -74,6 +81,7 @@ class PlayerController(
     private var policy = ReconnectPolicy()
     private var session = 0L
     private var retryJob: Job? = null
+    private var firstFrameJob: Job? = null
     private var playingSince: Long? = null
 
     /** Abre a câmera; substitui qualquer reprodução anterior. */
@@ -95,6 +103,7 @@ class PlayerController(
         session++
         retryJob?.cancel()
         retryJob = null
+        cancelFirstFrameWait()
         playingSince = null
         engine.close()
         request = null
@@ -111,12 +120,21 @@ class PlayerController(
             object : VideoEngine.Listener {
                 override fun onPlaying() {
                     if (mySession != session) return
+                    cancelFirstFrameWait()
                     if (playingSince == null) playingSince = clock()
                     _state.value = PlayerState.Playing
                 }
 
                 override fun onInfo(info: StreamInfo) {
-                    if (mySession == session) _info.value = info
+                    if (mySession != session) return
+                    _info.value = info
+                    if (playingSince == null && firstFrameJob == null) {
+                        firstFrameJob = scope.launch {
+                            delay(FIRST_FRAME_TIMEOUT_MS)
+                            firstFrameJob = null
+                            if (mySession == session) handleFailure(StreamError.UnsupportedCodec(info.codec))
+                        }
+                    }
                 }
 
                 override fun onFailure(error: StreamError) {
@@ -126,7 +144,13 @@ class PlayerController(
         )
     }
 
+    private fun cancelFirstFrameWait() {
+        firstFrameJob?.cancel()
+        firstFrameJob = null
+    }
+
     private fun handleFailure(error: StreamError) {
+        cancelFirstFrameWait()
         engine.close()
         session++
         _info.value = null // o decoder foi liberado; o painel não mostra dados velhos
@@ -145,3 +169,6 @@ class PlayerController(
         }
     }
 }
+
+/** Espera máxima pelo primeiro quadro com o decoder pronto; folga sobre intervalos de quadro-chave usuais. */
+const val FIRST_FRAME_TIMEOUT_MS = 15_000L
