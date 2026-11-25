@@ -107,6 +107,7 @@ Em andamento na spec `app-android` (ADR 0006). Pré-requisitos no Windows: JDK 2
 cd android
 ./gradlew -p build-logic test     # gerador do tema a partir de design/tokens.json
 ./gradlew :core:test :onvif:test :app:testDebugUnitTest :app:checkUiColors :app:checkCleartextHttp :app:lintRelease
+./gradlew :app:checkReleasePermissions   # manifesto do release só com as quatro permissões
 ./gradlew :app:connectedDebugAndroidTest   # testes instrumentados (celular ou emulador)
 ```
 

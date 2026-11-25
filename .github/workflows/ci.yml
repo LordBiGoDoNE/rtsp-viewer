@@ -183,9 +183,9 @@ jobs:
       - name: Testes JVM, cor literal, HTTP fora do onvif e lint
         run: ./gradlew :core:test :onvif:test :app:testDebugUnitTest :app:checkUiColors :app:checkCleartextHttp :app:lintRelease
 
-      - name: APK de release sem assinatura
+      - name: APK de release sem assinatura e permissões do manifesto mesclado
         run: |
-          ./gradlew :app:assembleRelease
+          ./gradlew :app:assembleRelease :app:checkReleasePermissions
           ls -l app/build/outputs/apk/release/
 
       - name: Artefato APK
