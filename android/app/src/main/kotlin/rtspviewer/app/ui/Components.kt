@@ -40,7 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.editableText
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -213,6 +215,8 @@ internal fun FormField(
     )
 }
 
+private const val MASK = "•"
+
 /**
  * Campo de senha (oculto). O texto fica num [TextFieldState] só da composição
  * (não vai para o estado salvo da Activity) e é repassado a [onChange]; quando
@@ -238,7 +242,14 @@ internal fun SecretField(
     }
     OutlinedSecureTextField(
         state = state,
-        modifier = modifier.fillMaxWidth().testTag(tag),
+        // O campo já é marcado como senha, mas o Compose entrega o texto em claro
+        // à árvore de acessibilidade (leitores de tela, `uiautomator dump`). Como
+        // o EditText nativo, a acessibilidade recebe só os pontos, um por
+        // caractere; o texto real continua no TextFieldState.
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(tag)
+            .semantics { editableText = AnnotatedString(MASK.repeat(state.text.length)) },
         label = { Text(label) },
         supportingText = help?.let { t -> { Text(t) } },
         keyboardOptions = KeyboardOptions(

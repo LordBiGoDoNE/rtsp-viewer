@@ -1,7 +1,12 @@
 package rtspviewer.app.ui
 
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
@@ -15,6 +20,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -150,6 +156,69 @@ class UiFlowsTest {
         pressBack()
         waitFor("Câmeras")
         compose.onNodeWithText("Garagem").assertIsDisplayed()
+    }
+
+    /**
+     * Campo de senha: marcado como senha na semântica e sem o texto digitado na
+     * árvore de acessibilidade (o que leitores de tela e o `uiautomator dump`
+     * enxergam), nos dois lugares em que o app pede senha.
+     */
+    @Test
+    fun senhaDoFormularioNaoApareceParaAcessibilidade() {
+        start()
+        compose.onAllNodesWithText("Adicionar câmera").onFirst().performClick()
+        compose.onNodeWithTag("campo-senha").performTextInput("form123")
+        compose.onNodeWithTag("campo-senha").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password))
+        assertHiddenFromAccessibility("form123")
+    }
+
+    @Test
+    fun senhaPedidaNaoApareceParaAcessibilidade() {
+        start(camera("Garagem", "rtsp://192.168.0.10/s", "admin"))
+        waitFor("Garagem")
+        compose.onNodeWithText("Garagem").performClick()
+        waitFor("Senha de admin")
+        compose.onNodeWithTag("campo-senha-pedida").performTextInput("pedida123")
+        compose.onNodeWithTag("campo-senha-pedida")
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Password))
+        assertHiddenFromAccessibility("pedida123")
+    }
+
+    /**
+     * Percorre as janelas visíveis à acessibilidade (o diálogo é outra janela)
+     * e falha se [secret] aparecer em algum texto; exige achar o campo de senha
+     * preenchido, para não passar com a árvore ainda desatualizada.
+     */
+    private fun assertHiddenFromAccessibility(secret: String) {
+        compose.waitForIdle()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val pkg = instrumentation.targetContext.packageName
+        val automation = instrumentation.uiAutomation
+        automation.serviceInfo = automation.serviceInfo.apply {
+            flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
+        // Os eventos de acessibilidade do Compose saem com atraso; repete até a
+        // árvore conter o campo de senha preenchido.
+        var texts = emptyList<String>()
+        var found = false
+        for (attempt in 0 until 30) {
+            val seen = mutableListOf<String>()
+            var filledPassword = false
+            fun walk(node: AccessibilityNodeInfo?) {
+                if (node == null) return
+                if (node.isPassword && !node.text.isNullOrEmpty()) filledPassword = true
+                node.text?.let { seen += it.toString() }
+                node.contentDescription?.let { seen += it.toString() }
+                for (i in 0 until node.childCount) walk(node.getChild(i))
+            }
+            // Só as janelas do app (a barra de status e as notificações ficam de fora).
+            automation.windows.map { it.root }.filter { it?.packageName == pkg }.forEach(::walk)
+            texts = seen
+            assertTrue("senha exposta à acessibilidade: ${texts.filter { secret in it }}", texts.none { secret in it })
+            if (filledPassword) { found = true; break }
+            Thread.sleep(100)
+        }
+        assertTrue("campo de senha preenchido não apareceu na acessibilidade: $texts", found)
     }
 
     private companion object {
