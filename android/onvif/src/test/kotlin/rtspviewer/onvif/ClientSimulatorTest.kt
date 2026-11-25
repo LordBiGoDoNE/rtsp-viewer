@@ -15,6 +15,7 @@ import rtspviewer.onvif.support.SimAuth
 import rtspviewer.onvif.support.SimConfig
 import rtspviewer.onvif.support.SimProfile
 import rtspviewer.onvif.support.Simulator
+import rtspviewer.onvif.support.UNRESTRICTED
 
 /**
  * Cliente ONVIF contra o simulador em processo (mesmos casos de
@@ -25,7 +26,7 @@ import rtspviewer.onvif.support.Simulator
 class ClientSimulatorTest {
     private fun creds(cfg: SimConfig) = Credentials(cfg.username, Password(cfg.password))
 
-    private fun client(resolver: HostResolver = HostResolver.SYSTEM) = OnvifClient(
+    private fun client(resolver: HostResolver = UNRESTRICTED) = OnvifClient(
         OnvifConfig(connectTimeoutMs = 2_000, totalTimeoutMs = 5_000, probePorts = emptyList(), probeConnectTimeoutMs = 500),
         resolver,
     )
@@ -141,7 +142,7 @@ class ClientSimulatorTest {
     fun prazoTotalValeParaAConsultaInteira() {
         val cfg = SimConfig(responseDelayMs = 400)
         Simulator(cfg).use { sim ->
-            val c = OnvifClient(OnvifConfig(connectTimeoutMs = 2_000, totalTimeoutMs = 1_500, probePorts = emptyList()))
+            val c = OnvifClient(OnvifConfig(connectTimeoutMs = 2_000, totalTimeoutMs = 1_500, probePorts = emptyList()), UNRESTRICTED)
             val start = System.nanoTime()
             assertFailsWith<OnvifException.Unreachable> { c.fetchStreams(device(sim), creds(cfg)) }
             val elapsedMs = (System.nanoTime() - start) / 1_000_000
@@ -195,7 +196,7 @@ class ClientSimulatorTest {
     @Test
     fun localizaAPortaOnvifEntreAsUsuais() {
         Simulator(SimConfig()).use { sim ->
-            val c = OnvifClient(OnvifConfig(probePorts = listOf(closedPort(), sim.port, closedPort()), probeConnectTimeoutMs = 500))
+            val c = OnvifClient(OnvifConfig(probePorts = listOf(closedPort(), sim.port, closedPort()), probeConnectTimeoutMs = 500), UNRESTRICTED)
             assertEquals(sim.deviceUrl(), c.locate("127.0.0.1", null).url)
         }
     }
@@ -204,6 +205,7 @@ class ClientSimulatorTest {
     fun nenhumaPortaResponde() {
         val c = OnvifClient(
             OnvifConfig(probePorts = listOf(closedPort(), closedPort()), probeConnectTimeoutMs = 300, totalTimeoutMs = 2_000),
+            UNRESTRICTED,
         )
         assertFailsWith<OnvifException.NotOnvif> { c.locate("127.0.0.1", null) }
     }
@@ -223,6 +225,36 @@ class ClientSimulatorTest {
                 OnvifClient(OnvifConfig(probePorts = listOf(sim.port)), recusa).locate("127.0.0.1", null)
             }
             assertTrue(sim.requests.isEmpty())
+        }
+    }
+
+    /**
+     * Redirecionamento HTTP nunca é seguido (ADR 0006, tarefa 3.5): a câmera
+     * responde 3xx com `Location` para outro servidor e esse servidor não recebe
+     * nenhum pedido — nem a sondagem, nem as chamadas com WS-Security, nem a
+     * repetição com HTTP Digest (`Authorization`). A consulta termina em erro.
+     */
+    @Test
+    fun redirecionamentoNaoESeguido() {
+        for (status in listOf(301, 302, 303, 307, 308)) {
+            for (auth in listOf(SimAuth.WsSecurity, SimAuth.HttpDigest, SimAuth.Open)) {
+                val caso = "$status $auth"
+                Simulator(SimConfig(auth = SimAuth.Open)).use { destino ->
+                    val cfg = SimConfig(auth = auth, redirect = status to destino.deviceUrl())
+                    Simulator(cfg).use { camera ->
+                        assertFailsWith<OnvifException.NotOnvif>(caso) { client().locate("127.0.0.1", camera.port) }
+                        assertFailsWith<OnvifException.NotOnvif>(caso) {
+                            client().fetchStreams(device(camera), creds(cfg))
+                        }
+                        val trafego = camera.allRequests()
+                        assertTrue(trafego.contains("GetProfiles"), caso)
+                        if (auth == SimAuth.HttpDigest) {
+                            assertTrue(trafego.lowercase().contains("authorization: digest"), caso)
+                        }
+                        assertTrue(destino.requests.isEmpty(), "$caso: destino do redirecionamento recebeu pedido")
+                    }
+                }
+            }
         }
     }
 

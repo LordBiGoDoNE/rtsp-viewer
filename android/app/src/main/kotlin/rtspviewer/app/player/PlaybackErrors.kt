@@ -1,7 +1,9 @@
 package rtspviewer.app.player
 
 import androidx.annotation.OptIn
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.rtsp.RtspMediaSource
@@ -30,6 +32,11 @@ fun mapPlaybackError(e: PlaybackException): StreamError {
     if (causes(e).any { it is RtspMediaSource.RtspPlaybackException && AUTH_FAILED.containsMatchIn(it.message.orEmpty()) }) {
         return StreamError.AuthenticationFailed()
     }
+    // A câmera respondeu, mas nenhuma trilha tem depacketizador no Media3
+    // (MJPEG, por exemplo): o codec não chega até aqui e reconectar não adianta.
+    if (causes(e).any { it.message == NO_PLAYABLE_TRACK }) {
+        return StreamError.UnsupportedCodec(codecName(null))
+    }
     val detail = redactCredentials(causes(e).mapNotNull { it.message }.lastOrNull() ?: e.errorCodeName)
     return when (e.errorCode) {
         PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
@@ -50,7 +57,31 @@ fun mapPlaybackError(e: PlaybackException): StreamError {
     }
 }
 
+/**
+ * Falha das trilhas: sem trilha de vídeo, [StreamError.NoVideo]; com vídeo e
+ * nenhum decoder para ele, [StreamError.UnsupportedCodec]; senão `null`.
+ *
+ * Limite do Media3 1.11: o `RtspClient` descarta do SDP as trilhas sem
+ * depacketizador (MJPEG e outros fora de `RtpPayloadFormat.isFormatSupported`).
+ * Se só sobrar áudio, o vídeo some antes de chegar aqui e o resultado é
+ * [StreamError.NoVideo]; se não sobrar nada, é o "No playable track." tratado
+ * em [mapPlaybackError].
+ */
+@OptIn(UnstableApi::class)
+fun tracksFailure(tracks: Tracks): StreamError? {
+    if (tracks.isEmpty) return null
+    val video = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
+    return when {
+        video.isEmpty() -> StreamError.NoVideo()
+        video.none { it.isSupported } -> StreamError.UnsupportedCodec(codecName(video.first().getTrackFormat(0).sampleMimeType))
+        else -> null
+    }
+}
+
 /** `DESCRIBE 401`, `SETUP 401`… (RtspClient do Media3 1.11). */
 private val AUTH_FAILED = Regex("""\b401\b""")
+
+/** Mensagem do `RtspClient` (Media3 1.11) quando nenhuma trilha do SDP é reproduzível. */
+private const val NO_PLAYABLE_TRACK = "No playable track."
 
 private fun causes(e: Throwable): Sequence<Throwable> = generateSequence(e) { it.cause.takeIf { c -> c !== it } }.take(10)

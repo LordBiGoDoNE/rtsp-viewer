@@ -9,8 +9,7 @@ import java.net.InetAddress
 import java.net.Proxy
 import java.net.URI
 import java.net.URISyntaxException
-import java.util.concurrent.Executors
-import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 import rtspviewer.core.domain.redactCredentials
 
@@ -25,9 +24,10 @@ internal class HttpReply(val status: Int, val wwwAuthenticate: String?, val body
  * prazo, além do `readTimeout` com o tempo restante.
  */
 internal object Http {
-    private val watchdog: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor { r ->
+    /** Vigia do prazo; tarefas canceladas saem da fila na hora (não seguram a conexão até o prazo). */
+    private val watchdog: ScheduledThreadPoolExecutor = ScheduledThreadPoolExecutor(1) { r ->
         Thread(r, "onvif-prazo").apply { isDaemon = true }
-    }
+    }.apply { removeOnCancelPolicy = true }
 
     fun post(
         url: String,

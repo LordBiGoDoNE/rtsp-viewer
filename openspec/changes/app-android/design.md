@@ -111,8 +111,16 @@ bibliotecas de serialização, como o `core` do desktop.
   reconectando (1, 2, 4, 8, 16 e 30 s, reinício após 10 s estáveis) e erro.
   401 vira "Usuário ou senha inválidos." sem reconexão; codec sem decoder vira
   "Formato de vídeo não suportado: <codec>".
+  Limitação do Media3 1.11: o RTSP dele descarta do SDP as trilhas sem
+  depacketizador (MJPEG, por exemplo), e o codec não chega ao app. Sem
+  nenhuma trilha reproduzível, a mensagem é "Formato de vídeo não suportado:
+  desconhecido", sem reconexão; se sobrar só áudio, é "A câmera não envia
+  vídeo.".
 - Sair da visualização ou levar o app para segundo plano libera o player em
-  até 1 s. Ao voltar, a câmera reconecta.
+  até 1 s. Ao voltar, a câmera reconecta. O `release()` tem prazo de 300 ms e
+  a conexão RTSP usa sockets próprios (`setSocketFactory`) com prazo de
+  conexão de 5 s, abortados ao fechar: o `connect` do Media3 não tem prazo e
+  prenderia a thread de reprodução com a câmera sem responder.
 - Plano B, se o Media3 não cumprir a latência ou não abrir as câmeras reais:
   parar e decidir com o usuário (libVLC ou outra opção), sem trocar a
   biblioteca por conta própria.

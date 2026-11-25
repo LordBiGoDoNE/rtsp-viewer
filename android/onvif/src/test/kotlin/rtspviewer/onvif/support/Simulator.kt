@@ -62,7 +62,15 @@ data class SimConfig(
     val oversizedProfiles: Boolean = false,
     /** Prefixos de namespace dos elementos de resposta (firmwares variam). */
     val prefixes: Prefixes = Prefixes(),
+    /**
+     * Redirecionamento HTTP: depois da autenticação (a repetição com HTTP
+     * Digest também é redirecionada), responde com este status e `Location`.
+     */
+    val redirect: Pair<Int, String>? = null,
 )
+
+/** Resolução irrestrita, só para os testes (o app usa a regra da rede local). */
+val UNRESTRICTED = rtspviewer.onvif.HostResolver { host -> InetAddress.getByName(host) }
 
 data class Prefixes(val env: String = "env", val tds: String = "tds", val trt: String = "trt", val tt: String = "tt")
 
@@ -127,6 +135,11 @@ class Simulator(private val cfg: SimConfig) : AutoCloseable {
                     }
                 }
             }
+        }
+
+        cfg.redirect?.let { (status, location) ->
+            ex.responseHeaders.add("Location", location)
+            return respond(ex, status, "text/plain", "")
         }
 
         val p = cfg.prefixes

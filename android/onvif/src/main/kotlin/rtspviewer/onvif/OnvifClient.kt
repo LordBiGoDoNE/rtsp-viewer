@@ -1,7 +1,6 @@
 package rtspviewer.onvif
 
 import java.net.InetAddress
-import java.net.UnknownHostException
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -51,24 +50,14 @@ data class OnvifConfig(
  * vão. A resolução é feita uma vez por consulta e todas as chamadas dela usam
  * o mesmo IP: quem resolve também decide se o destino é aceito (no app, só a
  * rede local; ADR 0006). Recusa → [OnvifException], sem nada enviado.
+ *
+ * Não há resolvedor padrão: quem cria o [OnvifClient] escolhe a regra de
+ * destino explicitamente, para que nenhum uso esqueça a restrição à rede local
+ * e mande credenciais a um IP público.
  */
 fun interface HostResolver {
     /** @throws OnvifException */
     fun resolve(host: String): InetAddress
-
-    companion object {
-        /** Resolução do sistema, sem restrição de destino. */
-        val SYSTEM = HostResolver { host ->
-            LocalAddresses.parseLiteral(host)?.let { return@HostResolver InetAddress.getByAddress(it) }
-            try {
-                InetAddress.getByName(host)
-            } catch (_: UnknownHostException) {
-                throw OnvifException.Unreachable("endereço não encontrado: $host")
-            } catch (_: SecurityException) {
-                throw OnvifException.Unreachable("endereço não encontrado: $host")
-            }
-        }
-    }
 }
 
 /** Serviço de dispositivo ONVIF localizado. */
@@ -132,7 +121,8 @@ internal data class ProfileInfo(val token: String, val width: Int, val height: I
 
 class OnvifClient(
     private val config: OnvifConfig = OnvifConfig(),
-    private val resolver: HostResolver = HostResolver.SYSTEM,
+    /** Regra de destino (obrigatória; no app, `LocalNetworkResolver`). */
+    private val resolver: HostResolver,
 ) {
     private sealed interface AuthMode {
         data object WsSecurity : AuthMode
