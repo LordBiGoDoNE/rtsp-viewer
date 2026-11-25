@@ -53,8 +53,11 @@ a proibir também `rtsp-viewer-onvif`, `ureq`, `quick-xml`, `socket2` e
 
 `ureq` sem as features padrão (sem `rustls` e sem `gzip`): sem runtime async,
 sem TLS (ONVIF em rede local usa HTTP) e com chunked e timeouts prontos. Cada
-consulta tem timeout de conexão de 2 s e total de 5 s. Respostas acima de
-256 KiB são recusadas antes do parse.
+chamada tem timeout de conexão de 2 s, e a consulta inteira (todas as chamadas
+de `locate` ou de `fetch_streams`) tem prazo total de 10 s: cada chamada recebe
+o que resta do prazo. O total, antes 5 s por chamada, passou a valer para a
+consulta (até seis chamadas) e subiu para 10 s para acomodar câmeras lentas
+(revisão do grupo 1). Respostas acima de 256 KiB são recusadas antes do parse.
 
 ### D2. Autenticação
 
@@ -80,15 +83,18 @@ consulta tem timeout de conexão de 2 s e total de 5 s. Respostas acima de
      conexão de 1 s, e fica com a primeira que responder a
      `GetSystemDateAndTime`.
 2. `GetDeviceInformation` (fabricante e modelo, para sugerir o nome) e
-   `GetCapabilities`, para achar o serviço de mídia.
+   `GetCapabilities`, para achar o serviço de mídia. Do `XAddr` de mídia valem
+   só a porta e o caminho; o host é sempre o da câmera (ADR 0005).
 3. `GetProfiles` e `GetStreamUri` (RTP-Unicast sobre RTSP) para os perfis de
    vídeo.
 4. Principal = perfil de maior resolução. Secundário = o de menor resolução,
    se for diferente. Empate na resolução: vale a ordem do dispositivo.
 5. URLs devolvidas com credenciais embutidas passam por `RtspUrl::parse`. As
-   credenciais são descartadas, porque as do cadastro valem. Host
-   `0.0.0.0`/`localhost` na URL é trocado pelo host da câmera (firmwares com
-   NAT errado).
+   credenciais são descartadas, porque as do cadastro valem. Como essas
+   credenciais vão junto ao abrir o stream, da URL valem só esquema, porta e
+   caminho/consulta; o host é sempre o da câmera (ADR 0005), o que também
+   resolve firmwares que anunciam `0.0.0.0`, loopback ou o IP interno atrás
+   de NAT.
 
 ### D4. WS-Discovery
 

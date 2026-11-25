@@ -12,21 +12,21 @@ rede não confiável (grupos 1 e 2), concorrência (grupo 4).
 
 ## 1. Cliente ONVIF (`task/descoberta-onvif/cliente`, base: épica)
 
-- [ ] 1.1 Crate `desktop/crates/onvif` com versões fixas (design D1), sem TLS
+- [x] 1.1 Crate `desktop/crates/onvif` com versões fixas (design D1), sem TLS
   nem gzip; ADR 0005 (ONVIF: bibliotecas, sem TLS, autenticação, limites).
-- [ ] 1.2 `soap.rs`: envelopes SOAP 1.2, parse por nome local com
+- [x] 1.2 `soap.rs`: envelopes SOAP 1.2, parse por nome local com
   `quick-xml`, limite de 256 KiB e erros SOAP (`Fault`, `NotAuthorized`).
-- [ ] 1.3 `auth.rs`: PasswordDigest com nonce aleatório, compensação de relógio
+- [x] 1.3 `auth.rs`: PasswordDigest com nonce aleatório, compensação de relógio
   (`GetSystemDateAndTime`) e HTTP Digest (MD5, `qop=auth`) na repetição após
   401.
-- [ ] 1.4 `client.rs`: `GetDeviceInformation`, `GetCapabilities`,
+- [x] 1.4 `client.rs`: `GetDeviceInformation`, `GetCapabilities`,
   `GetProfiles` e `GetStreamUri`; escolha de principal e secundário; troca de
   host `0.0.0.0`/`localhost`; sondagem de portas 80/2020/8000/8080/8899 em
   paralelo (D3).
-- [ ] 1.5 `examples/fake_onvif.rs`: simulador ONVIF com perfis configuráveis,
+- [x] 1.5 `examples/fake_onvif.rs`: simulador ONVIF com perfis configuráveis,
   relógio deslocado e modo HTTP Digest; testes de integração em processo,
   inclusive senha errada e que a senha nunca trafega em texto puro.
-- [ ] 1.6 Corrigir a referência desatualizada ao ADR da stack no `AGENTS.md`
+- [x] 1.6 Corrigir a referência desatualizada ao ADR da stack no `AGENTS.md`
   (com `rules-conflict-checker`).
 
 ## 2. Busca na rede (`task/descoberta-onvif/busca`, base: grupo 1)
