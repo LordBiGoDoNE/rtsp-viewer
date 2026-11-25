@@ -1229,7 +1229,7 @@ mod tests {
             w.get_url_error(),
             "Use um IP, um nome de host ou uma URL rtsp:// completa."
         );
-        add(&w, "A", "192.168.1.120:abc", "", "");
+        add(&w, "A", "192.168.1.164:abc", "", "");
         assert_eq!(w.get_name_error(), "");
         assert_eq!(
             w.get_url_error(),
@@ -1760,8 +1760,8 @@ mod tests {
     fn cadastro_so_com_ip_grava_principal_e_secundario() {
         let h = harness(Box::new(MemoryCredentialStore::default()));
         h.resolver
-            .returns(Ok(streams("192.168.1.120", Some("TP-Link C200"))));
-        save_new(&h, "", "192.168.1.120", "admin", "segredo");
+            .returns(Ok(streams("192.168.1.164", Some("TP-Link C200"))));
+        save_new(&h, "", "192.168.1.164", "admin", "segredo");
         assert_eq!(h.w.get_page(), Page::Form);
         assert_eq!(h.w.get_form_state(), FormState::LookingUp);
         assert_eq!(h.w.get_cameras().row_count(), 0, "nada é salvo antes");
@@ -1776,7 +1776,7 @@ mod tests {
         assert_eq!(
             calls,
             [(
-                StreamTarget::Address(DeviceAddress::parse("192.168.1.120").unwrap()),
+                StreamTarget::Address(DeviceAddress::parse("192.168.1.164").unwrap()),
                 Some("admin".into()),
                 true
             )]
@@ -1786,10 +1786,10 @@ mod tests {
         let catalog = h.catalog();
         let camera = &catalog.cameras()[0];
         assert_eq!(camera.name().as_str(), "TP-Link C200", "nome sugerido");
-        assert_eq!(camera.url().to_string(), "rtsp://192.168.1.120:554/stream1");
+        assert_eq!(camera.url().to_string(), "rtsp://192.168.1.164:554/stream1");
         assert_eq!(
             camera.substream().map(|s| s.to_string()).as_deref(),
-            Some("rtsp://192.168.1.120:554/stream2")
+            Some("rtsp://192.168.1.164:554/stream2")
         );
         assert_eq!(camera.username(), Some("admin"));
         let id = camera.id().clone();
@@ -1800,7 +1800,7 @@ mod tests {
                 .unwrap()
                 .url
                 .expose(),
-            "rtsp://admin:segredo@192.168.1.120:554/stream1",
+            "rtsp://admin:segredo@192.168.1.164:554/stream1",
             "a senha digitada vai para o cofre"
         );
     }
@@ -1808,10 +1808,10 @@ mod tests {
     #[test]
     fn secundario_de_outro_host_e_recusado_no_campo() {
         let h = harness(Box::new(MemoryCredentialStore::default()));
-        let mut s = streams("192.168.1.120", None);
+        let mut s = streams("192.168.1.164", None);
         s.sub = Some(RtspUrl::parse("rtsp://10.9.9.9/outro").unwrap().url);
         h.resolver.returns(Ok(s));
-        save_new(&h, "A", "192.168.1.120", "admin", "x");
+        save_new(&h, "A", "192.168.1.164", "admin", "x");
         h.finish(0);
         assert_eq!(h.w.get_page(), Page::Form);
         assert_eq!(h.w.get_form_state(), FormState::Editing);
@@ -1827,8 +1827,8 @@ mod tests {
     fn nome_digitado_prevalece_sobre_o_sugerido() {
         let h = harness(Box::new(MemoryCredentialStore::default()));
         h.resolver
-            .returns(Ok(streams("192.168.1.120", Some("TP-Link C200"))));
-        save_new(&h, "Garagem", "192.168.1.120", "admin", "x");
+            .returns(Ok(streams("192.168.1.164", Some("TP-Link C200"))));
+        save_new(&h, "Garagem", "192.168.1.164", "admin", "x");
         h.finish(0);
         assert_eq!(h.catalog().cameras()[0].name().as_str(), "Garagem");
     }
@@ -1837,7 +1837,7 @@ mod tests {
     fn autenticacao_recusada_nao_salva() {
         let h = harness(Box::new(MemoryCredentialStore::default()));
         h.resolver.returns(Err(ResolveError::AuthenticationFailed));
-        save_new(&h, "", "192.168.1.120", "admin", "errada");
+        save_new(&h, "", "192.168.1.164", "admin", "errada");
         h.finish(0);
         assert_eq!(h.w.get_page(), Page::Form);
         assert_eq!(h.w.get_form_state(), FormState::Editing);
@@ -1850,7 +1850,7 @@ mod tests {
     fn sem_onvif_escolher_hikvision_monta_os_caminhos() {
         let h = harness(Box::new(MemoryCredentialStore::default()));
         h.resolver.returns(Err(ResolveError::NotOnvif));
-        save_new(&h, "", "192.168.1.120", "admin", "x");
+        save_new(&h, "", "192.168.1.164", "admin", "x");
         h.finish(0);
         assert_eq!(h.w.get_form_state(), FormState::ChooseVendor);
         assert_eq!(
@@ -1878,13 +1878,13 @@ mod tests {
         let camera = &catalog.cameras()[0];
         assert_eq!(
             camera.url().to_string(),
-            "rtsp://192.168.1.120:554/Streaming/Channels/101"
+            "rtsp://192.168.1.164:554/Streaming/Channels/101"
         );
         assert_eq!(
             camera.substream().map(|s| s.to_string()).as_deref(),
-            Some("rtsp://192.168.1.120:554/Streaming/Channels/102")
+            Some("rtsp://192.168.1.164:554/Streaming/Channels/102")
         );
-        assert_eq!(camera.name().as_str(), "Câmera 192.168.1.120");
+        assert_eq!(camera.name().as_str(), "Câmera 192.168.1.164");
     }
 
     #[test]
@@ -1892,7 +1892,7 @@ mod tests {
         let h = harness(Box::new(MemoryCredentialStore::default()));
         h.resolver
             .returns(Err(ResolveError::Unreachable("tempo esgotado".into())));
-        save_new(&h, "", "192.168.1.120", "", "");
+        save_new(&h, "", "192.168.1.164", "", "");
         h.finish(0);
         assert_eq!(h.w.get_form_state(), FormState::ChooseVendor);
         assert_eq!(
@@ -1913,8 +1913,8 @@ mod tests {
     #[test]
     fn cancelar_consulta_ignora_o_resultado() {
         let h = harness(Box::new(MemoryCredentialStore::default()));
-        h.resolver.returns(Ok(streams("192.168.1.120", None)));
-        save_new(&h, "", "192.168.1.120", "admin", "x");
+        h.resolver.returns(Ok(streams("192.168.1.164", None)));
+        save_new(&h, "", "192.168.1.164", "admin", "x");
         h.w.invoke_cancel_lookup();
         assert_eq!(h.w.get_form_state(), FormState::Editing);
         assert_eq!(h.w.get_page(), Page::Form);
@@ -1924,7 +1924,7 @@ mod tests {
         assert_eq!(h.w.get_page(), Page::Form);
 
         // Esc também cancela; resultado já agendado é descartado.
-        save_new(&h, "", "192.168.1.120", "admin", "x");
+        save_new(&h, "", "192.168.1.164", "admin", "x");
         h.jobs.run(1);
         assert_eq!(h.ui.len(), 1);
         h.w.invoke_escape_pressed();
@@ -1943,7 +1943,7 @@ mod tests {
     #[test]
     fn url_completa_cadastra_sem_consulta() {
         let h = harness(Box::new(MemoryCredentialStore::default()));
-        save_new(&h, "A", "rtsp://admin:x@192.168.1.120:554/stream1", "", "");
+        save_new(&h, "A", "rtsp://admin:x@192.168.1.164:554/stream1", "", "");
         assert_eq!(h.w.get_page(), Page::List);
         assert_eq!(h.w.get_cameras().row_count(), 1);
         assert_eq!(h.jobs.count(), 0);
@@ -1955,7 +1955,7 @@ mod tests {
         let h = harness(Box::new(MemoryCredentialStore::default()));
         add(&h.w, "A", "rtsp://h/s", "admin", "p1");
         h.w.invoke_edit_camera(h.w.get_cameras().row_data(0).unwrap().id);
-        h.w.set_form_url("192.168.1.120".into());
+        h.w.set_form_url("192.168.1.164".into());
         h.w.invoke_save_form();
         assert_eq!(
             h.w.get_form_error(),
@@ -1963,7 +1963,7 @@ mod tests {
         );
         assert_eq!(h.jobs.count(), 0);
 
-        h.resolver.returns(Ok(streams("192.168.1.120", Some("X"))));
+        h.resolver.returns(Ok(streams("192.168.1.164", Some("X"))));
         h.w.set_form_password("p1".into());
         h.w.invoke_save_form();
         h.finish(0);
@@ -1972,7 +1972,7 @@ mod tests {
         assert_eq!(catalog.cameras()[0].name().as_str(), "A");
         assert_eq!(
             catalog.cameras()[0].url().to_string(),
-            "rtsp://192.168.1.120:554/stream1"
+            "rtsp://192.168.1.164:554/stream1"
         );
     }
 }

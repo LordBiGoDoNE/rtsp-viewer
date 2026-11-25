@@ -98,11 +98,11 @@ mod tests {
 
     fn streams() -> ResolvedStreams {
         ResolvedStreams {
-            main: RtspUrl::parse("rtsp://192.168.1.120:554/stream1")
+            main: RtspUrl::parse("rtsp://192.168.1.164:554/stream1")
                 .unwrap()
                 .url,
             sub: Some(
-                RtspUrl::parse("rtsp://192.168.1.120:554/stream2")
+                RtspUrl::parse("rtsp://192.168.1.164:554/stream2")
                     .unwrap()
                     .url,
             ),
@@ -111,7 +111,7 @@ mod tests {
     }
 
     fn target() -> StreamTarget {
-        StreamTarget::Address(DeviceAddress::parse("192.168.1.120").unwrap())
+        StreamTarget::Address(DeviceAddress::parse("192.168.1.164").unwrap())
     }
 
     #[test]
@@ -119,11 +119,11 @@ mod tests {
         assert_eq!(classify_address("rtsp://h/s"), Ok(AddressInput::Rtsp));
         assert_eq!(classify_address(" RTSPS://h/s"), Ok(AddressInput::Rtsp));
         assert!(matches!(
-            classify_address("192.168.1.120"),
+            classify_address("192.168.1.164"),
             Ok(AddressInput::Device(_))
         ));
         assert!(classify_address("http://x").is_err());
-        assert!(classify_address("192.168.1.120:abc").is_err());
+        assert!(classify_address("192.168.1.164:abc").is_err());
     }
 
     #[test]
@@ -168,11 +168,11 @@ mod tests {
 
     #[test]
     fn fabricante_monta_urls() {
-        let a = DeviceAddress::parse("192.168.1.120").unwrap();
+        let a = DeviceAddress::parse("192.168.1.164").unwrap();
         let (m, s) = vendor_streams(Vendor::Hikvision, &a);
         assert_eq!(
             m.to_string(),
-            "rtsp://192.168.1.120:554/Streaming/Channels/101"
+            "rtsp://192.168.1.164:554/Streaming/Channels/101"
         );
         assert!(s.is_some());
     }

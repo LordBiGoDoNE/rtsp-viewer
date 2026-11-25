@@ -41,7 +41,7 @@ sem o usuário digitar o caminho RTSP.
 
 #### Scenario: Só o IP, porta ONVIF desconhecida
 
-- **WHEN** o usuário digita só `192.168.1.120`, informa usuário e senha e salva
+- **WHEN** o usuário digita só `192.168.1.164`, informa usuário e senha e salva
 - **THEN** o app encontra o serviço ONVIF da câmera nas portas usuais (inclusive 2020, da Tapo) e cadastra os streams obtidos
 
 #### Scenario: Consulta não bloqueia a interface

@@ -138,7 +138,7 @@ cd desktop; cargo run -p rtsp-viewer-onvif --example fake_onvif -- --port 8099
 3. "Adicionar" com a conta da câmera. **Esperado:** cadastro sem digitar URL,
    principal `/stream1` e secundário `/stream2`, e o vídeo abre.
 4. Alternativa: "Adicionar câmera" digitando só o IP (por exemplo
-   `192.168.1.120`). **Esperado:** o app encontra o ONVIF na porta 2020 e
+   `192.168.1.164`). **Esperado:** o app encontra o ONVIF na porta 2020 e
    cadastra igual.
 5. Anote: se a busca achou a câmera, o tempo de cada etapa e qualquer mensagem
    inesperada. Não envie IP, usuário ou senha em issues ou PRs.

@@ -58,7 +58,7 @@ fn catalog() -> (CameraCatalog, &'static Memory) {
 fn draft(sub: SubstreamInput) -> CameraDraft {
     CameraDraft {
         name: "Portão".into(),
-        url: "rtsp://192.168.1.120:554/stream1".into(),
+        url: "rtsp://192.168.1.164:554/stream1".into(),
         substream: sub,
         ..Default::default()
     }
@@ -69,13 +69,13 @@ fn cadastra_com_secundario_sem_credenciais() {
     let (mut c, mem) = catalog();
     let id = c
         .add(draft(SubstreamInput::Set(
-            "rtsp://admin:segredo@192.168.1.120:554/stream2".into(),
+            "rtsp://admin:segredo@192.168.1.164:554/stream2".into(),
         )))
         .unwrap();
     let cam = c.get(&id).unwrap();
     assert_eq!(
         cam.substream().unwrap().to_string(),
-        "rtsp://192.168.1.120:554/stream2"
+        "rtsp://192.168.1.164:554/stream2"
     );
     assert_eq!(mem.cameras.lock().unwrap()[0].substream(), cam.substream());
 }
@@ -85,7 +85,7 @@ fn editar_sem_mexer_mantem_e_clear_remove() {
     let (mut c, _) = catalog();
     let id = c
         .add(draft(SubstreamInput::Set(
-            "rtsp://192.168.1.120/stream2".into(),
+            "rtsp://192.168.1.164/stream2".into(),
         )))
         .unwrap();
     c.edit(&id, draft(SubstreamInput::Unchanged)).unwrap();
@@ -128,7 +128,7 @@ fn com_secundario() -> (CameraCatalog, &'static Memory, CameraId) {
     let (mut c, mem) = catalog();
     let id = c
         .add(draft(SubstreamInput::Set(
-            "rtsp://192.168.1.120:554/stream2".into(),
+            "rtsp://192.168.1.164:554/stream2".into(),
         )))
         .unwrap();
     (c, mem, id)
@@ -139,7 +139,7 @@ fn trocar_url_no_mesmo_host_sem_mexer_descarta_secundario() {
     let (mut c, mem, id) = com_secundario();
     c.edit(
         &id,
-        draft_url("rtsp://192.168.1.120:554/h264", SubstreamInput::Unchanged),
+        draft_url("rtsp://192.168.1.164:554/h264", SubstreamInput::Unchanged),
     )
     .unwrap();
     assert!(c.get(&id).unwrap().substream().is_none());
@@ -186,7 +186,7 @@ fn secundario_de_outro_host_e_erro_de_campo_e_nada_muda() {
             &id,
             draft_url(
                 "rtsp://192.168.1.121:554/stream1",
-                SubstreamInput::Set("rtsp://192.168.1.120:554/stream2".into()),
+                SubstreamInput::Set("rtsp://192.168.1.164:554/stream2".into()),
             ),
         )
         .unwrap_err();
@@ -198,11 +198,11 @@ fn secundario_de_outro_host_e_erro_de_campo_e_nada_muda() {
         "{fields:?}"
     );
     let cam = c.get(&id).unwrap();
-    assert_eq!(cam.url().to_string(), "rtsp://192.168.1.120:554/stream1");
+    assert_eq!(cam.url().to_string(), "rtsp://192.168.1.164:554/stream1");
     assert!(cam.substream().is_some());
     assert_eq!(
         mem.cameras.lock().unwrap()[0].url().to_string(),
-        "rtsp://192.168.1.120:554/stream1"
+        "rtsp://192.168.1.164:554/stream1"
     );
 
     let (mut c, mem) = catalog();

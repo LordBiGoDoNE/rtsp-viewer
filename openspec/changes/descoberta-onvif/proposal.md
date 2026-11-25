@@ -6,7 +6,7 @@ Issue: [#12](https://github.com/LordBiGoDoNE/rtsp-viewer/issues/12).
 ## Why
 
 No teste da `mvp-desktop-rtsp`, o usuário achou pouco intuitivo digitar a URL
-RTSP completa (`rtsp://192.168.1.120:554/stream1`). Ele quer digitar só o IP e
+RTSP completa (`rtsp://192.168.1.164:554/stream1`). Ele quer digitar só o IP e
 que o app encontre as câmeras sozinho. Só o IP não basta: o caminho do stream
 muda por fabricante. A solução é perguntar à própria câmera pelo ONVIF, que
 devolve as URLs RTSP, e usar o WS-Discovery para encontrar as câmeras na rede.

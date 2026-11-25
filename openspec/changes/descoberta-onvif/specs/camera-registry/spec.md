@@ -10,12 +10,12 @@ credenciais.
 
 #### Scenario: Endereço só com IP
 
-- **WHEN** o usuário informa `192.168.1.120` no endereço e salva
+- **WHEN** o usuário informa `192.168.1.164` no endereço e salva
 - **THEN** o app consulta a câmera e grava a URL RTSP obtida, sem credenciais
 
 #### Scenario: Endereço inválido
 
-- **WHEN** o usuário informa um endereço que não é URL RTSP nem host válido (por exemplo `http://x` ou `192.168.1.120:abc`)
+- **WHEN** o usuário informa um endereço que não é URL RTSP nem host válido (por exemplo `http://x` ou `192.168.1.164:abc`)
 - **THEN** o app não salva e explica o formato aceito junto ao campo
 
 ### Requirement: Stream secundário opcional
