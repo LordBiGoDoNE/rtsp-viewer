@@ -10,7 +10,19 @@ export struct CameraRow {
     address: string,
 }
 
-export enum Page { list, form, viewer, about }
+/// Câmera encontrada pela busca na rede.
+export struct FoundRow {
+    name: string,
+    host: string,
+    registered: bool,
+}
+
+export enum Page { list, form, viewer, about, discover }
+
+/// Formulário: edição, consulta ONVIF em andamento ou escolha de fabricante.
+export enum FormState { editing, looking-up, choose-vendor }
+
+export enum DiscoverState { searching, found, empty, failed }
 
 export enum ViewState { connecting, playing, reconnecting, failed }
 
@@ -44,6 +56,14 @@ export component AppWindow inherits Window {
     in property <string> url-error;
     in property <string> form-error;
     in property <bool> vault-available: true;
+    in property <FormState> form-state: FormState.editing;
+    in property <[string]> vendors;
+    in property <string> vendor-reason;
+
+    // Procurar câmeras
+    in property <DiscoverState> discover-state: DiscoverState.searching;
+    in property <[FoundRow]> found;
+    in property <string> discover-error;
 
     // Visualização
     in property <string> viewer-name;
@@ -74,6 +94,16 @@ export component AppWindow inherits Window {
     callback cancel-password();
     callback show-about();
     callback escape-pressed();
+    callback cancel-lookup();
+    callback choose-vendor(int);
+    callback cancel-vendor();
+    callback discover-cameras();
+    callback rediscover();
+    callback close-discover();
+    callback add-found(int);
+    // Resultados das threads de busca e de consulta, já na thread da UI.
+    callback discovery-ready();
+    callback lookup-ready();
 
     /// Devolve o foco de teclado aos atalhos globais (chamado após trocar de tela).
     public function focus-main() {
@@ -140,6 +170,13 @@ export component AppWindow inherits Window {
                         }
                     }
                     AppButton {
+                        text: "Procurar câmeras";
+                        subtle: true;
+                        clicked => {
+                            root.discover-cameras();
+                        }
+                    }
+                    AppButton {
                         text: "Adicionar câmera";
                         primary: true;
                         clicked => {
@@ -184,11 +221,18 @@ export component AppWindow inherits Window {
                 }
                 HorizontalLayout {
                     alignment: center;
+                    spacing: Theme.space-s;
                     AppButton {
                         text: "Adicionar câmera";
                         primary: true;
                         clicked => {
                             root.add-camera();
+                        }
+                    }
+                    AppButton {
+                        text: "Procurar câmeras";
+                        clicked => {
+                            root.discover-cameras();
                         }
                     }
                 }
@@ -304,7 +348,43 @@ export component AppWindow inherits Window {
             padding: Theme.space-xl;
             HorizontalLayout {
                 alignment: center;
-                VerticalLayout {
+                if root.form-state == FormState.choose-vendor: VerticalLayout {
+                    width: Math.min(Theme.size-form-width, root.width - 2 * Theme.space-xl);
+                    spacing: Theme.space-m;
+                    Text {
+                        text: "Escolha o fabricante";
+                        color: Theme.color-text;
+                        font-size: Theme.font-size-display;
+                        font-weight: Theme.font-weight-bold;
+                    }
+                    Text {
+                        text: "A câmera não respondeu ao ONVIF. Escolha o fabricante para usar os caminhos RTSP conhecidos.";
+                        color: Theme.color-text;
+                        wrap: word-wrap;
+                    }
+                    if root.vendor-reason != "": Text {
+                        text: root.vendor-reason;
+                        color: Theme.color-text-muted;
+                        font-size: Theme.font-size-small;
+                        wrap: word-wrap;
+                    }
+                    for vendor[i] in root.vendors: AppButton {
+                        text: vendor;
+                        clicked => {
+                            root.choose-vendor(i);
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: end;
+                        AppButton {
+                            text: "Cancelar";
+                            clicked => {
+                                root.cancel-vendor();
+                            }
+                        }
+                    }
+                }
+                if root.form-state != FormState.choose-vendor: VerticalLayout {
                     width: Math.min(Theme.size-form-width, root.width - 2 * Theme.space-xl);
                     spacing: Theme.space-m;
                     Text {
@@ -316,6 +396,7 @@ export component AppWindow inherits Window {
                     FormField {
                         label: "Nome";
                         error: root.name-error;
+                        hint: root.form-editing ? "" : "Com só o IP, pode ficar vazio: o nome vem da câmera.";
                         TextField {
                             text <=> root.form-name;
                             has-error: root.name-error != "";
@@ -325,11 +406,12 @@ export component AppWindow inherits Window {
                         }
                     }
                     FormField {
-                        label: "Endereço RTSP";
+                        label: "Endereço";
                         error: root.url-error;
+                        hint: "IP da câmera ou URL RTSP completa";
                         TextField {
                             text <=> root.form-url;
-                            placeholder: "rtsp://192.168.0.10:554/stream1";
+                            placeholder: "192.168.0.10 ou rtsp://192.168.0.10:554/stream1";
                             has-error: root.url-error != "";
                             accepted => {
                                 root.save-form();
@@ -382,6 +464,197 @@ export component AppWindow inherits Window {
                             clicked => {
                                 root.save-form();
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        if root.page == Page.form && root.form-state == FormState.looking-up: Modal {
+            width: parent.width;
+            height: parent.height;
+            Text {
+                text: "Consultando a câmera…";
+                color: Theme.color-text;
+                font-size: Theme.font-size-title;
+                font-weight: Theme.font-weight-bold;
+                wrap: word-wrap;
+            }
+            HorizontalLayout {
+                alignment: end;
+                AppButton {
+                    text: "Cancelar";
+                    clicked => {
+                        root.cancel-lookup();
+                    }
+                }
+            }
+        }
+
+        // ------------------------------------------------------------ procurar câmeras
+        if root.page == Page.discover: VerticalLayout {
+            width: parent.width;
+            height: parent.height;
+            Rectangle {
+                height: Theme.size-toolbar-height;
+                background: Theme.color-surface;
+                HorizontalLayout {
+                    padding-left: Theme.space-l;
+                    padding-right: Theme.space-l;
+                    padding-top: (Theme.size-toolbar-height - Theme.size-control-height) / 2;
+                    padding-bottom: self.padding-top;
+                    spacing: Theme.space-s;
+                    AppButton {
+                        text: "Voltar";
+                        subtle: true;
+                        clicked => {
+                            root.close-discover();
+                        }
+                    }
+                    Text {
+                        text: "Procurar câmeras";
+                        color: Theme.color-text;
+                        font-size: Theme.font-size-title;
+                        font-weight: Theme.font-weight-bold;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                        overflow: elide;
+                    }
+                    AppButton {
+                        text: "Procurar de novo";
+                        enabled: root.discover-state != DiscoverState.searching;
+                        clicked => {
+                            root.rediscover();
+                        }
+                    }
+                }
+            }
+
+            if root.discover-state == DiscoverState.searching: VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "Procurando câmeras na rede…";
+                    color: Theme.color-text-muted;
+                    font-size: Theme.font-size-title;
+                    horizontal-alignment: center;
+                }
+            }
+
+            if root.discover-state == DiscoverState.found: Flickable {
+                content-height: found-rows.preferred-height;
+                found-rows := VerticalLayout {
+                    width: parent.width;
+                    for camera[i] in root.found: Rectangle {
+                        height: Theme.size-list-item-height;
+                        accessible-role: list-item;
+                        accessible-label: camera.name;
+                        accessible-description: camera.registered ? camera.host + " (Já cadastrada)" : camera.host;
+                        HorizontalLayout {
+                            padding-left: Theme.space-l;
+                            padding-right: Theme.space-l;
+                            padding-top: (Theme.size-list-item-height - Theme.size-control-height) / 2;
+                            padding-bottom: self.padding-top;
+                            spacing: Theme.space-s;
+                            VerticalLayout {
+                                alignment: center;
+                                horizontal-stretch: 1;
+                                Text {
+                                    text: camera.name;
+                                    color: Theme.color-text;
+                                    font-weight: Theme.font-weight-bold;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: camera.host;
+                                    color: Theme.color-text-muted;
+                                    font-size: Theme.font-size-small;
+                                    overflow: elide;
+                                }
+                            }
+                            if camera.registered: Text {
+                                text: "Já cadastrada";
+                                color: Theme.color-text-muted;
+                                vertical-alignment: center;
+                            }
+                            if !camera.registered: AppButton {
+                                text: "Adicionar";
+                                accessible-text: "Adicionar " + camera.name + " (" + camera.host + ")";
+                                primary: true;
+                                clicked => {
+                                    root.add-found(i);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if root.discover-state == DiscoverState.empty: VerticalLayout {
+                alignment: center;
+                spacing: Theme.space-l;
+                padding: Theme.space-xl;
+                Text {
+                    text: "Nenhuma câmera encontrada.";
+                    color: Theme.color-text;
+                    font-size: Theme.font-size-title;
+                    horizontal-alignment: center;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    VerticalLayout {
+                        width: Math.min(Theme.size-form-width, root.width - 2 * Theme.space-xl);
+                        spacing: Theme.space-xs;
+                        Text {
+                            text: "Confira se:";
+                            color: Theme.color-text-muted;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: "• o ONVIF está ativo na câmera (na Tapo, crie a \"Conta da câmera\" no app Tapo);";
+                            color: Theme.color-text-muted;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: "• o computador e a câmera estão na mesma rede;";
+                            color: Theme.color-text-muted;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            text: "• o Firewall do Windows permite o rtsp-viewer na rede privada.";
+                            color: Theme.color-text-muted;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    AppButton {
+                        text: "Cadastrar pelo IP";
+                        primary: true;
+                        clicked => {
+                            root.add-camera();
+                        }
+                    }
+                }
+            }
+
+            if root.discover-state == DiscoverState.failed: VerticalLayout {
+                alignment: center;
+                spacing: Theme.space-l;
+                padding: Theme.space-xl;
+                Text {
+                    text: root.discover-error;
+                    color: Theme.color-danger;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    AppButton {
+                        text: "Cadastrar pelo IP";
+                        primary: true;
+                        clicked => {
+                            root.add-camera();
                         }
                     }
                 }

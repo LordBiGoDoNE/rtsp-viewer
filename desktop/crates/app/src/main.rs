@@ -6,10 +6,12 @@ mod presentation;
 mod ui;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use infrastructure::credentials::{KeyringBackend, SystemCredentialStore};
 use infrastructure::json_repository::JsonCameraRepository;
 use infrastructure::memory_repository::MemoryCameraRepository;
+use infrastructure::onvif_adapters::{OnvifCameraDiscovery, OnvifStreamResolver};
 use rtsp_viewer_core::application::CameraCatalog;
 use rtsp_viewer_media::FfmpegPlayer;
 use slint::ComponentHandle;
@@ -25,8 +27,14 @@ fn main() -> Result<(), slint::PlatformError> {
     // preparado quando o usuário aponta para uma câmera (design.md, D3).
     let (catalog, banner) = load_catalog();
 
-    let _controller =
-        ui::Controller::attach(&window, catalog, Box::new(FfmpegPlayer::default()), banner);
+    // Os adaptadores ONVIF não fazem rede ao serem criados: a busca e a
+    // consulta só rodam por ação do usuário.
+    let services = ui::Services {
+        player: Box::new(FfmpegPlayer::default()),
+        resolver: Arc::new(OnvifStreamResolver::default()),
+        discovery: Arc::new(OnvifCameraDiscovery::default()),
+    };
+    let _controller = ui::Controller::attach(&window, catalog, services, banner);
     trace.attach(window.window());
     window.run()
 }
