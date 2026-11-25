@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change descoberta-onvif. Update Purpose after archive.
+Busca de câmeras na rede local (WS-Discovery por multicast e unicast na sub-rede privada), só quando o usuário pede, e consulta ONVIF que obtém as URLs dos streams principal e secundário a partir do IP, usuário e senha, com escolha de fabricante quando a câmera não responde ao ONVIF. As credenciais vão sempre só para o host da câmera. Criada pela change descoberta-onvif (desktop).
 
 ## Requirements
 
