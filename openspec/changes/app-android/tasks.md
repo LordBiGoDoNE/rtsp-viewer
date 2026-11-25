@@ -69,13 +69,16 @@ usuário com depuração USB.
 
 ## 4. Player Media3 (`task/app-android/player`, base: grupo 3)
 
-- [ ] 4.1 Adaptador Media3: RTSP sobre TCP, buffers de baixa latência,
+- [x] 4.1 Adaptador Media3: RTSP sobre TCP, buffers de baixa latência,
   decoder por hardware com fallback, informações (codec, resolução, decoder).
-- [ ] 4.2 Estados e reconexão (1–30 s, reinício após 10 s estáveis), 401 sem
+- [x] 4.2 Estados e reconexão (1–30 s, reinício após 10 s estáveis), 401 sem
   reconexão, codec não suportado, liberação em até 1 s ao sair ou ir para
   segundo plano.
-- [ ] 4.3 Testes instrumentados contra a câmera falsa (abrir H.264 e H.265,
-  latência com o relógio na imagem, queda e volta, 401, codec não suportado).
+- [x] 4.3 Testes instrumentados contra a câmera falsa (abrir H.264 e H.265,
+  senha certa e errada, câmera inacessível, parar em até 1 s); estados,
+  reconexão e codec não suportado nos testes JVM (motor falso e tradução dos
+  erros do Media3); latência medida no celular no grupo 6 (captura de tela
+  com o relógio da imagem). Ajuste do grupo 4.
 
 ## 5. Interface Compose (`task/app-android/interface`, base: grupo 4)
 
