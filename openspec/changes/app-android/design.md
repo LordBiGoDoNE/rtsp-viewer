@@ -185,6 +185,30 @@ Ajustes do grupo 3:
   cancelada ou antiga é ignorado (mesmo padrão do desktop).
 - A tela fica ligada enquanto o vídeo está em reprodução (`keepScreenOn`).
 
+Ajustes do grupo 5:
+
+- As adaptações estão em `design/telas.md`, seção 6. Além das listadas acima,
+  a barra da lista mantém "Adicionar câmera" e leva "Procurar câmeras" e
+  "Sobre" para um menu "⋮", porque os quatro itens não cabem na largura de um
+  celular; o estado vazio continua com os dois botões.
+- "A rotação segue o sensor": em tela cheia a Activity usa
+  `SCREEN_ORIENTATION_FULL_SENSOR`; ao sair, volta a `UNSPECIFIED` (o
+  comportamento normal do aparelho).
+- Busca sem Wi-Fi nem Ethernet: o adaptador `OnvifCameraDiscovery` devolve a
+  lista vazia sem enviar nada nem pegar o `MulticastLock` (antes falhava com
+  "Nenhuma interface de rede disponível para a busca."), para a tela mostrar
+  "Nenhuma câmera encontrada." com a dica do Wi-Fi, como pede o cenário "Busca
+  no Android sem Wi-Fi nem Ethernet" da spec `camera-discovery`.
+- Wiring em `AppContainer` (repositório e cofre no `filesDir`, ONVIF, busca e
+  `Media3Engine`), com `AppContainer.portsFactory` como ponto de substituição
+  dos testes de UI. Nada é aberto na criação: o adaptador de busca só é criado
+  na primeira busca e a versão do app só é lida em "Sobre". O `ViewModel`
+  recebe as portas (`AppPorts`) e cria o `PlayerController` no próprio escopo;
+  o catálogo roda num despachante de uma thread sobre `Dispatchers.IO`, uma
+  operação por vez. Senhas digitadas ficam só na composição (campo seguro do
+  Material 3, fora do estado salvo da Activity) e no estado do formulário até
+  a consulta terminar.
+
 ### D6. Tema gerado dos tokens
 
 - Plugin em `android/build-logic` com uma task que lê `design/tokens.json` e

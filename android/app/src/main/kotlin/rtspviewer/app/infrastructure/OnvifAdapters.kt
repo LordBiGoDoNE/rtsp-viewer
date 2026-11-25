@@ -131,7 +131,12 @@ class OnvifCameraDiscovery(
     override fun discover(): List<DiscoveredCamera> {
         var held = false
         try {
-            val config = DiscoveryConfig(interfaces.list(), durationMs, target, unicast)
+            // Sem Wi-Fi nem Ethernet (só dados móveis): nada é enviado e a busca
+            // termina vazia, para a tela mostrar a dica do Wi-Fi (spec
+            // `camera-discovery`, ajuste do grupo 5).
+            val networks = interfaces.list()
+            if (networks.isEmpty()) return emptyList()
+            val config = DiscoveryConfig(networks, durationMs, target, unicast)
             multicast.acquire()
             held = true
             return Discovery.discover(config).map { DiscoveredCamera(it.host, it.deviceUrl, it.name) }
