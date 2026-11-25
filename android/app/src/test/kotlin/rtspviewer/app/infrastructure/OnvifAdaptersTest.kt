@@ -34,6 +34,27 @@ class OnvifAdaptersTest {
 
     private val loopback = ip("127.0.0.1") as Inet4Address
 
+    // ------------------------------------------------- redes da busca (spec camera-discovery, D4)
+
+    @Test
+    fun buscaUsaWifiEEthernetSemVpn() {
+        assertTrue(isLocalSearchNetwork(wifi = true, ethernet = false, vpnTransport = false, notVpn = true))
+        assertTrue(isLocalSearchNetwork(wifi = false, ethernet = true, vpnTransport = false, notVpn = true))
+    }
+
+    @Test
+    fun buscaIgnoraVpnQueHerdaOTransporteWifi() {
+        // VPN sobre Wi-Fi: o Android repassa TRANSPORT_WIFI da rede de baixo.
+        assertFalse(isLocalSearchNetwork(wifi = true, ethernet = false, vpnTransport = true, notVpn = false))
+        assertFalse(isLocalSearchNetwork(wifi = true, ethernet = false, vpnTransport = true, notVpn = true))
+        assertFalse(isLocalSearchNetwork(wifi = false, ethernet = true, vpnTransport = false, notVpn = false))
+    }
+
+    @Test
+    fun buscaIgnoraDadosMoveisEOutrasRedes() {
+        assertFalse(isLocalSearchNetwork(wifi = false, ethernet = false, vpnTransport = false, notVpn = true))
+    }
+
     // ------------------------------------------------- regra da rede local (ADR 0006)
 
     @Test
