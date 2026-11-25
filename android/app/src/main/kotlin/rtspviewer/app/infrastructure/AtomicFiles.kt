@@ -2,6 +2,7 @@ package rtspviewer.app.infrastructure
 
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.time.Instant
@@ -29,9 +30,23 @@ private val STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(Zone
 /** `AAAAMMDD-HHMMSS` em UTC, para o sufixo `.corrompido-<data e hora>`. */
 internal fun timestampUtc(epochMillis: Long): String = STAMP.format(Instant.ofEpochMilli(epochMillis))
 
-/** Renomeia o arquivo ilegível para `<nome>.corrompido-<data e hora>` e devolve o novo caminho. */
+/**
+ * Renomeia o arquivo ilegível para `<nome>.corrompido-<data e hora>` e devolve o
+ * novo caminho. Se já houver uma cópia com esse nome (duas no mesmo segundo),
+ * usa `-2`, `-3`... em vez de sobrescrevê-la.
+ */
 internal fun preserveCorrupted(file: File, nowMillis: Long): File {
-    val backup = File(file.absoluteFile.parentFile, "${file.name}.corrompido-${timestampUtc(nowMillis)}")
-    Files.move(file.toPath(), backup.toPath())
-    return backup
+    val dir = file.absoluteFile.parentFile
+    val base = "${file.name}.corrompido-${timestampUtc(nowMillis)}"
+    var n = 1
+    while (true) {
+        val backup = File(dir, if (n == 1) base else "$base-$n")
+        try {
+            // Sem REPLACE_EXISTING: nunca sobrescreve uma cópia anterior.
+            Files.move(file.toPath(), backup.toPath())
+            return backup
+        } catch (_: FileAlreadyExistsException) {
+            n++
+        }
+    }
 }

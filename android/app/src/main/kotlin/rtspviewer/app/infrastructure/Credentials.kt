@@ -7,6 +7,7 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.security.GeneralSecurityException
 import java.security.KeyStore
+import java.security.ProviderException
 import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -22,7 +23,11 @@ import rtspviewer.core.domain.Password
 /** Texto cifrado com o IV usado (AES-GCM). */
 class Sealed(val iv: ByteArray, val data: ByteArray)
 
-/** Cifra autenticada das senhas. [aad] amarra o texto cifrado à câmera. */
+/**
+ * Cifra autenticada das senhas. [aad] amarra o texto cifrado à câmera.
+ * Falhas são sinalizadas com [GeneralSecurityException]; o cofre também tolera
+ * [ProviderException] (não verificada), usada por provedores de criptografia.
+ */
 interface SecretCipher {
     /** @throws GeneralSecurityException */
     fun seal(plain: ByteArray, aad: ByteArray): Sealed
@@ -36,20 +41,33 @@ interface SecretCipher {
  * é criada na primeira gravação e nunca sai do Keystore.
  */
 class KeystoreSecretCipher(private val alias: String = DEFAULT_ALIAS) : SecretCipher {
-    override fun seal(plain: ByteArray, aad: ByteArray): Sealed {
+    override fun seal(plain: ByteArray, aad: ByteArray): Sealed = keystoreOp {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, existingKey() ?: generateKey())
         cipher.updateAAD(aad)
         val data = cipher.doFinal(plain)
-        return Sealed(cipher.iv, data)
+        Sealed(cipher.iv, data)
     }
 
-    override fun open(sealed: Sealed, aad: ByteArray): ByteArray {
+    override fun open(sealed: Sealed, aad: ByteArray): ByteArray = keystoreOp {
         val key = existingKey() ?: throw GeneralSecurityException("chave ausente")
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, sealed.iv))
         cipher.updateAAD(aad)
-        return cipher.doFinal(sealed.data)
+        cipher.doFinal(sealed.data)
+    }
+
+    /**
+     * O Android Keystore sinaliza falhas do provedor com exceções não
+     * verificadas (`ProviderException`, `IllegalStateException` e afins) em
+     * `KeyGenerator.generateKey`, `Cipher.init` e `doFinal`. Aqui só há
+     * chamadas ao provedor, então qualquer [RuntimeException] vira
+     * [GeneralSecurityException], o contrato de [SecretCipher].
+     */
+    private inline fun <T> keystoreOp(block: () -> T): T = try {
+        block()
+    } catch (e: RuntimeException) {
+        throw GeneralSecurityException("falha do Keystore: ${e.javaClass.simpleName}", e)
     }
 
     private fun existingKey(): SecretKey? {
@@ -111,6 +129,8 @@ class FileCredentialStore(
             }
         } catch (_: GeneralSecurityException) {
             null
+        } catch (_: ProviderException) {
+            null
         } catch (_: IllegalArgumentException) {
             null
         }
@@ -122,6 +142,8 @@ class FileCredentialStore(
         val sealed = try {
             cipher.seal(plain, aad(id))
         } catch (e: GeneralSecurityException) {
+            throw CredentialException("Não foi possível cifrar a senha: ${e.javaClass.simpleName}")
+        } catch (e: ProviderException) {
             throw CredentialException("Não foi possível cifrar a senha: ${e.javaClass.simpleName}")
         } finally {
             plain.fill(0)

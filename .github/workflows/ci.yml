@@ -180,8 +180,8 @@ jobs:
       - name: Testes do build-logic (tema gerado dos tokens)
         run: ./gradlew -p build-logic test
 
-      - name: Testes JVM, cor literal e lint
-        run: ./gradlew :core:test :onvif:test :app:testDebugUnitTest :app:checkUiColors :app:lintRelease
+      - name: Testes JVM, cor literal, HTTP fora do onvif e lint
+        run: ./gradlew :core:test :onvif:test :app:testDebugUnitTest :app:checkUiColors :app:checkCleartextHttp :app:lintRelease
 
       - name: APK de release sem assinatura
         run: |
