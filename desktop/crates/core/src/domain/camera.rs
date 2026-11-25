@@ -60,6 +60,11 @@ impl CameraName {
     }
 }
 
+/// Stream secundário de outro dispositivo: o host difere do principal.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("O stream secundário precisa usar o mesmo endereço do principal.")]
+pub struct SubstreamHostMismatch;
+
 /// Câmera cadastrada. A senha nunca faz parte da entidade: fica no cofre,
 /// indexada pelo `CameraId`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,6 +73,11 @@ pub struct Camera {
     name: CameraName,
     url: RtspUrl,
     username: Option<String>,
+    /// Stream secundário (menor resolução), com as mesmas credenciais.
+    /// Invariante: pertence ao mesmo dispositivo do principal, ou seja, tem o
+    /// mesmo host. Trocar a URL principal descarta o secundário (ver
+    /// `change_url`).
+    substream: Option<RtspUrl>,
 }
 
 impl Camera {
@@ -82,6 +92,7 @@ impl Camera {
             name,
             url,
             username: normalize_username(username),
+            substream: None,
         }
     }
 
@@ -101,11 +112,38 @@ impl Camera {
         self.username.as_deref()
     }
 
+    pub fn substream(&self) -> Option<&RtspUrl> {
+        self.substream.as_ref()
+    }
+
+    /// Define (ou remove, com `None`) o stream secundário. Recusa um
+    /// secundário com host diferente do principal: as credenciais do
+    /// principal não devem ir para outro dispositivo.
+    pub fn change_substream(
+        &mut self,
+        substream: Option<RtspUrl>,
+    ) -> Result<(), SubstreamHostMismatch> {
+        if let Some(sub) = &substream
+            && !same_host(sub, &self.url)
+        {
+            return Err(SubstreamHostMismatch);
+        }
+        self.substream = substream;
+        Ok(())
+    }
+
     pub fn rename(&mut self, name: CameraName) {
         self.name = name;
     }
 
+    /// Troca a URL principal. Se ela mudar, o secundário é descartado: ele foi
+    /// derivado da URL antiga (fabricante, caminho, dispositivo) e não há como
+    /// saber se continua válido. Quem tiver um novo secundário o informa
+    /// depois, com `change_substream`.
     pub fn change_url(&mut self, url: RtspUrl) {
+        if url != self.url {
+            self.substream = None;
+        }
         self.url = url;
     }
 
@@ -118,6 +156,10 @@ impl Camera {
     pub fn requires_credentials(&self) -> bool {
         self.username.is_some()
     }
+}
+
+fn same_host(a: &RtspUrl, b: &RtspUrl) -> bool {
+    a.host().eq_ignore_ascii_case(b.host())
 }
 
 fn normalize_username(username: Option<String>) -> Option<String> {
@@ -175,6 +217,61 @@ mod tests {
         assert_eq!(c.url().to_string(), "rtsp://h2/s");
         assert_eq!(c.username(), Some("admin"));
         assert!(c.requires_credentials());
+    }
+
+    fn cam_com_secundario() -> Camera {
+        let mut c = Camera::new(
+            CameraName::parse("A").unwrap(),
+            url("rtsp://192.168.1.164:554/stream1"),
+            None,
+        );
+        c.change_substream(Some(url("rtsp://192.168.1.164:554/stream2")))
+            .unwrap();
+        c
+    }
+
+    #[test]
+    fn secundario_de_outro_host_e_recusado() {
+        let mut c = cam_com_secundario();
+        assert_eq!(
+            c.change_substream(Some(url("rtsp://192.168.1.121/stream2"))),
+            Err(SubstreamHostMismatch)
+        );
+        assert_eq!(
+            c.substream().unwrap().to_string(),
+            "rtsp://192.168.1.164:554/stream2"
+        );
+        assert!(c.change_substream(None).is_ok());
+        assert!(c.substream().is_none());
+    }
+
+    #[test]
+    fn host_e_comparado_sem_diferenciar_maiusculas() {
+        let mut c = Camera::new(
+            CameraName::parse("A").unwrap(),
+            url("rtsp://Cam.local/s1"),
+            None,
+        );
+        assert!(c.change_substream(Some(url("rtsp://cam.LOCAL/s2"))).is_ok());
+    }
+
+    #[test]
+    fn trocar_url_principal_descarta_secundario() {
+        // Mesmo host, outro caminho.
+        let mut c = cam_com_secundario();
+        c.change_url(url("rtsp://192.168.1.164:554/h264"));
+        assert!(c.substream().is_none());
+        // Outro host.
+        let mut c = cam_com_secundario();
+        c.change_url(url("rtsp://192.168.1.121:554/stream1"));
+        assert!(c.substream().is_none());
+    }
+
+    #[test]
+    fn mesma_url_principal_mantem_secundario() {
+        let mut c = cam_com_secundario();
+        c.change_url(url("rtsp://192.168.1.164:554/stream1"));
+        assert!(c.substream().is_some());
     }
 
     #[test]

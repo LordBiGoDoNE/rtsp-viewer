@@ -21,6 +21,11 @@ const FORBIDDEN: &[&str] = &[
     "reqwest",
     "hyper",
     "rtsp-viewer-media",
+    "rtsp-viewer-onvif",
+    "ureq",
+    "quick-xml",
+    "socket2",
+    "if-addrs",
     "rtsp",
 ];
 

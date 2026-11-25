@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/core", "crates/media", "crates/app"]
+members = ["crates/core", "crates/media", "crates/onvif", "crates/app"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,6 +11,7 @@ publish = false
 [workspace.dependencies]
 rtsp-viewer-core = { path = "crates/core" }
 rtsp-viewer-media = { path = "crates/media" }
+rtsp-viewer-onvif = { path = "crates/onvif" }
 
 ffmpeg-next = { version = "9.1", default-features = false, features = ["codec", "format", "software-scaling"] }
 slint = "1.19"

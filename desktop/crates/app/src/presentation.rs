@@ -1,8 +1,45 @@
 //! Textos e estados exibidos, derivados do domínio. Funções puras, sem Slint,
 //! para que o conteúdo da UI seja testável isoladamente (design/telas.md).
 
-use rtsp_viewer_core::application::ports::{PlayerState, RepositoryWarning, StreamInfo};
+use rtsp_viewer_core::application::ports::{
+    DiscoveryFailure, PlayerState, RepositoryWarning, ResolveError, StreamInfo,
+};
 use rtsp_viewer_core::application::{CatalogError, Field};
+use rtsp_viewer_core::domain::{CAMERA_NAME_MAX, DeviceAddress};
+
+/// Edição com usuário e sem senha digitada: a consulta ONVIF precisa dela.
+pub const LOOKUP_NEEDS_PASSWORD: &str = "Informe a senha para consultar a câmera.";
+
+/// Nome de uma câmera encontrada na busca.
+pub fn found_name(suggested: Option<&str>) -> String {
+    suggested
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .unwrap_or("Câmera ONVIF")
+        .to_string()
+}
+
+/// Nome de uma câmera cadastrada só com o endereço, quando o usuário deixou o
+/// nome vazio e a câmera não informou um.
+pub fn fallback_name(address: &DeviceAddress) -> String {
+    format!("Câmera {address}")
+        .chars()
+        .take(CAMERA_NAME_MAX)
+        .collect()
+}
+
+/// Motivo exibido na escolha de fabricante; vazio quando o motivo é a própria
+/// falta de ONVIF, que o texto da tela já diz.
+pub fn vendor_reason(reason: &ResolveError) -> String {
+    match reason {
+        ResolveError::NotOnvif => String::new(),
+        other => format!("Motivo: {other}"),
+    }
+}
+
+pub fn discovery_error(error: &DiscoveryFailure) -> String {
+    format!("Não foi possível procurar câmeras: {error}")
+}
 
 /// Estado da visualização, espelho do enum `ViewState` do Slint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,6 +173,33 @@ mod tests {
         );
         let s = form_errors(&CatalogError::Storage("disco cheio".into()));
         assert!(s.general.contains("disco cheio"));
+    }
+
+    #[test]
+    fn textos_da_busca_e_da_consulta() {
+        assert_eq!(found_name(Some(" TP-Link C200 ")), "TP-Link C200");
+        assert_eq!(found_name(Some("  ")), "Câmera ONVIF");
+        assert_eq!(found_name(None), "Câmera ONVIF");
+        assert_eq!(
+            fallback_name(&DeviceAddress::parse("192.168.1.164").unwrap()),
+            "Câmera 192.168.1.164"
+        );
+        let long = format!("{}.local", "a".repeat(80));
+        assert_eq!(
+            fallback_name(&DeviceAddress::parse(&long).unwrap())
+                .chars()
+                .count(),
+            CAMERA_NAME_MAX
+        );
+        assert_eq!(vendor_reason(&ResolveError::NotOnvif), "");
+        assert_eq!(
+            vendor_reason(&ResolveError::Unreachable("tempo esgotado".into())),
+            "Motivo: A câmera não respondeu: tempo esgotado"
+        );
+        assert_eq!(
+            discovery_error(&DiscoveryFailure("sem interface".into())),
+            "Não foi possível procurar câmeras: sem interface"
+        );
     }
 
     #[test]

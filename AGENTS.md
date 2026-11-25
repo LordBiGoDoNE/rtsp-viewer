@@ -7,7 +7,7 @@ Este arquivo só **detalha** o que é próprio do projeto e registra as **exceç
 ## Contexto
 
 - Client leve para câmeras RTSP no Windows, Linux e Android. Leveza, simplicidade e boot rápido são requisitos permanentes.
-- Stack, estrutura e sequência de specs: `openspec/config.yaml`. O projeto não tem backend; a regra global de backend em Java não se aplica. A escolha de Rust (desktop) e Kotlin (Android) foi aprovada pelo usuário em 2026-11-24 (client sem backend, com requisito de leveza e boot rápido); o ADR com a justificativa é criado em `docs/adr/` pela spec `mvp-desktop-rtsp`.
+- Stack, estrutura e sequência de specs: `openspec/config.yaml`. O projeto não tem backend; a regra global de backend em Java não se aplica. A escolha de Rust (desktop) e Kotlin (Android) foi aprovada pelo usuário em 2026-11-24 (client sem backend, com requisito de leveza e boot rápido); justificativa em `docs/adr/0001-stack.md`.
 
 ## Arquitetura (detalhamento de `arquitetura-backend.md`, no que se aplica a um client)
 

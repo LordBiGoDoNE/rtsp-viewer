@@ -28,6 +28,9 @@ struct CameraDto {
     url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     username: Option<String>,
+    /// Stream secundário (opcional; arquivos antigos não têm o campo).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    substream_url: Option<String>,
 }
 
 pub struct JsonCameraRepository {
@@ -105,6 +108,7 @@ impl CameraRepository for JsonCameraRepository {
                     name: c.name().as_str().to_string(),
                     url: c.url().to_string(),
                     username: c.username().map(str::to_string),
+                    substream_url: c.substream().map(|s| s.to_string()),
                 })
                 .collect(),
         };
@@ -129,7 +133,22 @@ fn parse(bytes: &[u8]) -> Result<Vec<Camera>, String> {
             if parsed.password.is_some() {
                 return Err("URL com senha no arquivo".to_string());
             }
-            Ok(Camera::restore(id, name, parsed.url, c.username))
+            let substream = match c.substream_url.as_deref() {
+                None => None,
+                Some(s) => {
+                    let p = RtspUrl::parse(s).map_err(|e| e.to_string())?;
+                    if p.password.is_some() {
+                        return Err("URL secundária com senha no arquivo".to_string());
+                    }
+                    Some(p.url)
+                }
+            };
+            let mut camera = Camera::restore(id, name, parsed.url, c.username);
+            // Secundário de outro host (arquivo editado à mão) é descartado sem
+            // tratar o arquivo como corrompido: a câmera continua utilizável
+            // pelo principal, e a próxima gravação já sai sem ele.
+            let _ = camera.change_substream(substream);
+            Ok(camera)
         })
         .collect()
 }
@@ -311,6 +330,73 @@ mod tests {
         assert_eq!(repo.load().unwrap().cameras, cams);
         repo.save(&cams).unwrap();
         assert_eq!(repo.load().unwrap().cameras, cams);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn secundario_ida_e_volta() {
+        let dir = temp_dir();
+        let repo = JsonCameraRepository::new(&dir);
+        let mut cam = camera("Portão", "rtsp://192.168.1.164:554/stream1", Some("admin"));
+        cam.change_substream(Some(
+            RtspUrl::parse("rtsp://192.168.1.164:554/stream2")
+                .unwrap()
+                .url,
+        ))
+        .unwrap();
+        repo.save(std::slice::from_ref(&cam)).unwrap();
+        let text = fs::read_to_string(repo.path()).unwrap();
+        assert!(text.contains("\"substream_url\": \"rtsp://192.168.1.164:554/stream2\""));
+        assert_eq!(repo.load().unwrap().cameras, [cam]);
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn arquivo_da_versao_anterior_carrega_sem_aviso() {
+        let dir = temp_dir();
+        let repo = JsonCameraRepository::new(&dir);
+        fs::write(
+            repo.path(),
+            r#"{"version":1,"cameras":[{"id":"6f1c2a9e-1d55-4d3c-9b6c-0d0b9d7c2f11","name":"A","url":"rtsp://h/s","username":"admin"}]}"#,
+        )
+        .unwrap();
+        let loaded = repo.load().unwrap();
+        assert!(loaded.warning.is_none());
+        assert_eq!(loaded.cameras.len(), 1);
+        assert!(loaded.cameras[0].substream().is_none());
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn secundario_com_senha_no_arquivo_conta_como_corrompido() {
+        let dir = temp_dir();
+        let repo = JsonCameraRepository::new(&dir);
+        fs::write(
+            repo.path(),
+            r#"{"version":1,"cameras":[{"id":"6f1c2a9e-1d55-4d3c-9b6c-0d0b9d7c2f11","name":"A","url":"rtsp://h/s","substream_url":"rtsp://u:p@h/s2"}]}"#,
+        )
+        .unwrap();
+        assert!(repo.load().unwrap().warning.is_some());
+        fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn secundario_de_outro_host_no_arquivo_e_descartado_sem_aviso() {
+        let dir = temp_dir();
+        let repo = JsonCameraRepository::new(&dir);
+        fs::write(
+            repo.path(),
+            r#"{"version":1,"cameras":[{"id":"6f1c2a9e-1d55-4d3c-9b6c-0d0b9d7c2f11","name":"A","url":"rtsp://192.168.1.164/s1","substream_url":"rtsp://192.168.1.121/s2"}]}"#,
+        )
+        .unwrap();
+        let loaded = repo.load().unwrap();
+        assert!(loaded.warning.is_none());
+        assert_eq!(loaded.cameras.len(), 1);
+        assert_eq!(
+            loaded.cameras[0].url().to_string(),
+            "rtsp://192.168.1.164/s1"
+        );
+        assert!(loaded.cameras[0].substream().is_none());
         fs::remove_dir_all(dir).ok();
     }
 
