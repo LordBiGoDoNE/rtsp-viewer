@@ -62,6 +62,15 @@ Requisitos permanentes: leve, simples, sem rede no boot.
     dispositivos distintos, para um flood na LAN não consumir memória sem
     limite;
   - cada consulta tem prazo total (10 s), repartido entre as chamadas dela.
+- A busca envia o Probe por multicast e também por unicast a cada host da
+  sub-rede privada (RFC 1918) de cada interface: há câmeras que ignoram o
+  multicast (a TP-Link Tapo C320WS só responde ao unicast) e redes que não o
+  repassam. A varredura fica limitada ao /24 do endereço quando a rede é
+  maior, a 254 destinos por interface e 1024 no total, dentro dos mesmos 3 s,
+  sem link-local, loopback nem IP público. As respostas passam pela mesma
+  validação acima; quem responde aos dois aparece uma vez (deduplicação por
+  `EndpointReference`). Custo: algumas centenas de datagramas de ~0,6 KiB e
+  consultas ARP na LAN, só quando o usuário pede a busca.
 
 ## Consequências
 
