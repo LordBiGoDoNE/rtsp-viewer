@@ -18,6 +18,24 @@ ligação dinâmica e sem modificações (ADR 0002).
 A interface usa o [Slint](https://slint.dev) sob a **Slint Royalty-free
 License 2.0** (ADR 0003). A atribuição exigida aparece na tela "Sobre" do app.
 
+## Android
+
+O app Android (`android/`, ADR 0006) não usa FFmpeg nem Slint. As bibliotecas
+de produção, todas sob a **Apache License 2.0**, ficam fixadas em
+`android/gradle/libs.versions.toml`:
+
+| Biblioteca | Uso |
+| --- | --- |
+| AndroidX Media3 (`media3-exoplayer`, `media3-exoplayer-rtsp`) | reprodução RTSP |
+| Jetpack Compose (BOM, `ui`, `foundation`, `material3`) | interface |
+| AndroidX Activity, Lifecycle e Core | Activity, ViewModel e utilitários |
+| Kotlin (biblioteca padrão), kotlinx-coroutines e kotlinx-serialization-json | linguagem, concorrência e `cameras.json` |
+
+A tela "Sobre" do app lista essas licenças. Bibliotecas só de teste (JUnit,
+AndroidX Test) não entram no APK. A lista completa das dependências sai de
+`./gradlew :app:dependencies --configuration releaseRuntimeClasspath` em
+`android/`.
+
 ## Crates Rust
 
 As demais dependências Rust usam licenças permissivas (MIT, Apache-2.0 ou
