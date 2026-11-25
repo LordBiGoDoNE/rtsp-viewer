@@ -129,6 +129,50 @@ class PlayerControllerTest {
     }
 
     @Test
+    fun decoderProntoSemQuadroParaComFormatoNaoSuportado() = runTest {
+        val e = FakeEngine()
+        val c = controller(e)
+        c.start(request)
+        e.listener!!.onInfo(StreamInfo("hevc", 1280, 720, "c2.exynos.hevc.decoder", true))
+        advanceTimeBy(FIRST_FRAME_TIMEOUT_MS - 1)
+        runCurrent()
+        assertEquals(PlayerState.Connecting, c.state.value)
+        advanceTimeBy(1)
+        runCurrent()
+        val s = assertIs<PlayerState.Failed>(c.state.value)
+        assertEquals("Formato de vídeo não suportado: hevc", s.error.message)
+        assertEquals(false, e.isOpen)
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals(1, e.opens, "não tenta de novo sozinho")
+    }
+
+    @Test
+    fun primeiroQuadroCancelaOPrazo() = runTest {
+        val e = FakeEngine()
+        val c = controller(e)
+        c.start(request)
+        e.listener!!.onInfo(StreamInfo("hevc", 1280, 720, "c2.exynos.hevc.decoder", true))
+        advanceTimeBy(FIRST_FRAME_TIMEOUT_MS - 1)
+        e.listener!!.onPlaying()
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals(PlayerState.Playing, c.state.value)
+    }
+
+    @Test
+    fun pararCancelaOPrazoDoPrimeiroQuadro() = runTest {
+        val e = FakeEngine()
+        val c = controller(e)
+        c.start(request)
+        e.listener!!.onInfo(StreamInfo("hevc", 1280, 720, "c2.exynos.hevc.decoder", true))
+        c.stop()
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals(PlayerState.Idle, c.state.value)
+    }
+
+    @Test
     fun pararDuranteAEsperaCancelaAReconexao() = runTest {
         val e = FakeEngine()
         val c = controller(e)

@@ -85,7 +85,7 @@ class Media3Engine(private val context: Context) : VideoEngine {
         net?.closeAll()
     }
 
-    private fun renderersFactory() = DefaultRenderersFactory(context)
+    private fun renderersFactory() = AppRenderersFactory(context)
         .setEnableDecoderFallback(true)
         .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF)
 
