@@ -102,10 +102,13 @@ usuário com depuração USB.
 
 ## 6. Fechamento (`task/app-android/fechamento`, base: grupo 5)
 
-- [ ] 6.1 Medições no celular do usuário: partida a frio com 20 câmeras,
+- [x] 6.1 Medições no celular do usuário: partida a frio com 20 câmeras,
   tamanho do APK, latência e tempo de busca; registro no README.
-- [ ] 6.2 `docs/licencas-terceiros.md`: bibliotecas do Android.
-- [ ] 6.3 Roteiro de teste no celular (câmera falsa, simulador ONVIF e a Tapo
+- [x] 6.2 `docs/licencas-terceiros.md`: bibliotecas do Android.
+- [x] 6.3 Roteiro de teste no celular (câmera falsa, simulador ONVIF e a Tapo
   do usuário) e instruções de instalação do APK.
-- [ ] 6.4 Teste de ponta a ponta do sistema local com a cadeia completa, no
-  celular do usuário (`teste-local.md`).
+- [x] 6.4 Teste de ponta a ponta do sistema local com a cadeia completa, no
+  celular do usuário (`teste-local.md`). A busca pelo celular não encontrou o
+  simulador ONVIF do PC nesta rede (multicast do Wi-Fi não chega ao PC); a
+  busca foi verificada com uma câmera real e o cadastro ONVIF, só com o
+  endereço do simulador.

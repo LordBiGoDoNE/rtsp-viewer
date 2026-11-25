@@ -35,6 +35,9 @@ antes da aprovação.
    | Portão | `rtsp://<IP-do-PC>:8554/auth` | `teste` | `teste123` |
    | Simulador ONVIF | `<IP-do-PC>:8099` (só o endereço) | `admin` | `admin123` |
 
+Se um gerenciador de senhas oferecer salvar as senhas digitadas no app, pode
+recusar: o app guarda a senha no próprio cofre.
+
 ## 1. Abertura e lista vazia
 
 - Abra o app. **Esperado:** abre rápido (menos de 1 s), barra "Câmeras" com
@@ -46,8 +49,9 @@ antes da aprovação.
 1. "Adicionar câmera" → "Falsa H.264" com a URL → "Salvar". **Esperado:** a
    câmera aparece na lista com o endereço sem credenciais.
 2. Tente salvar com nome vazio e endereço `http://x`. **Esperado:** "Informe um
-   nome." e "O endereço deve começar com rtsp:// ou rtsps://." abaixo dos
-   campos.
+   nome." e "Use um IP, um nome de host ou uma URL rtsp:// completa." abaixo
+   dos campos (o campo aceita também só o IP, por isso a mensagem cita os
+   dois formatos).
 3. Cadastre "Portão" com a URL `rtsp://teste:teste123@<IP-do-PC>:8554/auth`.
    **Esperado:** salva com usuário `teste` e a URL sem a senha.
 4. Menu "⋮" da linha → "Editar": mude o nome e salve; "Remover": confirmação
@@ -79,15 +83,26 @@ antes da aprovação.
 
 1. Menu "⋮" → "Procurar câmeras". **Esperado:** "Procurando câmeras na rede…" e,
    em até 4 s, "Simulador_ONVIF" com o IP do PC e o botão "Adicionar".
+   Se o simulador não aparecer (as câmeras reais da rede aparecem): o pedido
+   de busca multicast do celular não chegou ao PC (roteadores que não
+   repassam multicast do Wi-Fi para o cabo) e, no Windows, o pedido direto ao
+   IP do PC na porta UDP 3702 vai para o serviço de descoberta do próprio
+   Windows, não para o simulador. Faça então os itens 2 e 3 com uma câmera
+   ONVIF real ou siga para o item 4.
 2. "Adicionar" → usuário `admin`, senha `admin123` → "Salvar". **Esperado:**
    "Consultando a câmera…" e a câmera cadastrada com a URL principal obtida
    pelo ONVIF; abrir mostra o vídeo da câmera falsa.
 3. Procure de novo. **Esperado:** o simulador aparece como "Já cadastrada".
-4. "Adicionar câmera" com só `<IP-do-PC>:8099`, usuário `admin` e senha errada.
+4. "Adicionar câmera" com só `<IP-do-PC>:8099`, usuário `admin` e senha
+   `admin123`, nome vazio. **Esperado:** "Consultando a câmera…" e a câmera
+   cadastrada com o nome informado pelo simulador ("Simulador Camera ONVIF de
+   teste") e a URL principal; abrir mostra o vídeo. Repita com a senha errada.
    **Esperado:** "Usuário ou senha inválidos." e nada salvo.
-5. "Adicionar câmera" com só `<IP-do-PC>` (porta sem ONVIF, por exemplo pare o
-   simulador). **Esperado:** "Escolha o fabricante" com o motivo; "Hikvision"
-   cadastra `rtsp://<IP-do-PC>:554/Streaming/Channels/101`.
+5. "Adicionar câmera" com só `<IP-do-PC>` (o simulador não usa nenhuma das
+   portas ONVIF usuais). **Esperado:** "Escolha o fabricante" com "A câmera não
+   respondeu ao ONVIF. Escolha o fabricante para usar os caminhos RTSP
+   conhecidos." (o "Motivo: …" só aparece quando a falha é outra); "Hikvision" cadastra
+   `rtsp://<IP-do-PC>:554/Streaming/Channels/101`.
 6. Desligue o Wi-Fi do celular (só dados móveis) e procure. **Esperado:**
    "Nenhuma câmera encontrada." com a dica do Wi-Fi da mesma rede.
 
