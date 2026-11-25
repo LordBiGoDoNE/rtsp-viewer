@@ -12,6 +12,9 @@ desktop/target/
 
 # Android / Gradle
 android/.gradle/
+android/**/.gradle/
+android/.kotlin/
+android/**/.kotlin/
 android/build/
 android/**/build/
 android/local.properties

@@ -2,8 +2,8 @@
 
 Issue: [#21](https://github.com/LordBiGoDoNE/rtsp-viewer/issues/21).
 Épica: `epic/app-android`. Spec formalizada em 2026-11-25.
-Implementação: aguardando a confirmação de início. Merges dependem da
-aprovação do pacote final.
+Implementação autorizada em 2026-11-25 (grupos 1–6). Teste local pelo usuário:
+sim (no celular). Merges dependem da aprovação do pacote final.
 
 Os grupos formam uma cadeia (cada um parte da branch do anterior). Em cada
 grupo: testes do projeto, CI local via `act` (job `android`; o

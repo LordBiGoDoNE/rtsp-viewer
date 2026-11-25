@@ -80,6 +80,27 @@ Pacotes locais: `./scripts/package-windows.ps1` (gera `dist/*.zip`) e `cargo deb
 
 Variáveis úteis: `RTSP_VIEWER_CONFIG_DIR` (lista de câmeras isolada), `RTSP_VIEWER_BOOT_TRACE=<arquivo>` e `RTSP_VIEWER_BOOT_EXIT=1` (medição de boot).
 
+## Desenvolver (Android)
+
+Em andamento na spec `app-android` (ADR 0006). Pré-requisitos no Windows: JDK 21 e o Android SDK de linha de comando (`platform-tools`, `platforms/android-36`, `build-tools/36.1.0`) em `%LOCALAPPDATA%\Android\Sdk`. O wrapper baixa o Gradle 9.6.0.
+
+```powershell
+. ./scripts/env-android.ps1       # JAVA_HOME (JDK 21), ANDROID_HOME e adb no PATH
+cd android
+./gradlew -p build-logic test     # gerador do tema a partir de design/tokens.json
+./gradlew :core:test :onvif:test :app:testDebugUnitTest :app:checkUiColors :app:lintRelease
+./gradlew :app:connectedDebugAndroidTest   # testes instrumentados (celular ou emulador)
+```
+
+O tema do Compose (`Tokens.kt`) é gerado no build a partir de `design/tokens.json`; não há arquivo gerado versionado.
+
+APK de release assinado com a sua chave, fora do repositório:
+
+1. Uma vez: `./scripts/android-keystore.ps1` cria `%USERPROFILE%\.android-keys\rtsp-viewer.jks` com a senha que você digitar. Guarde uma cópia da keystore e da senha; sem elas, novas versões não instalam por cima.
+2. A cada versão: `./scripts/android-release.ps1` pede a senha e gera `android/app/build/outputs/apk/release/app-release.apk`. Instale com `adb install -r <apk>`.
+
+O CI gera só o APK sem assinatura, como artefato; nada é publicado.
+
 ## Licenças
 
 Veja `docs/licencas-terceiros.md`: FFmpeg sob LGPL, ligado dinamicamente; Slint sob a licença Royalty-free 2.0, com atribuição na tela "Sobre".
