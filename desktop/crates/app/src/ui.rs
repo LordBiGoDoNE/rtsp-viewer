@@ -12,7 +12,9 @@ use std::sync::{Arc, Mutex};
 use rtsp_viewer_core::application::ports::{
     PlaybackHandle, PlayerEvent, PlayerSink, StreamPlayer, StreamRequest, VideoFrame,
 };
-use rtsp_viewer_core::application::{CameraCatalog, CameraDraft, CatalogError, PasswordInput};
+use rtsp_viewer_core::application::{
+    CameraCatalog, CameraDraft, CatalogError, PasswordInput, SubstreamInput,
+};
 use rtsp_viewer_core::domain::{CameraId, Password};
 use slint::{ComponentHandle, Image, ModelRc, Rgba8Pixel, SharedPixelBuffer, VecModel};
 
@@ -194,6 +196,10 @@ impl Controller {
             } else {
                 PasswordInput::Set(Password::new(password))
             },
+            // A consulta ONVIF (grupo 4 da descoberta-onvif) preenche o
+            // secundário; o formulário de URL completa o mantém enquanto a URL
+            // principal não muda (trocá-la descarta o secundário).
+            substream: SubstreamInput::Unchanged,
         };
         let editing = self.editing.borrow().clone();
         let result = match &editing {
