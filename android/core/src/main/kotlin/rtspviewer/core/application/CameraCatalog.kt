@@ -65,9 +65,13 @@ class CameraCatalog private constructor(
     private val credentials: CredentialStore,
     private var list: List<Camera>,
 ) {
-    val cameras: List<Camera> get() = list
+    /**
+     * Cópias das câmeras: mutá-las não altera a lista em memória nem o arquivo.
+     * Mudanças passam por [add], [edit] e [remove], que persistem.
+     */
+    val cameras: List<Camera> get() = list.map { it.copy() }
 
-    fun get(id: CameraId): Camera? = list.firstOrNull { it.id == id }
+    fun get(id: CameraId): Camera? = find(id)?.copy()
 
     /** `false` quando as senhas não sobrevivem ao fechamento do app. */
     val passwordsArePersistent: Boolean get() = credentials.isPersistent
@@ -128,7 +132,7 @@ class CameraCatalog private constructor(
      * próximas aberturas.
      */
     fun connectionRequest(id: CameraId, typedPassword: Password? = null): StreamRequest {
-        val camera = get(id) ?: throw CatalogError.NotFound()
+        val camera = find(id) ?: throw CatalogError.NotFound()
         if (!camera.requiresCredentials()) {
             // Sem usuário, conecta sem credenciais; senha antiga é ignorada.
             return StreamRequest(id, camera.url.withCredentials(null, null), camera.url.toString())
@@ -145,6 +149,8 @@ class CameraCatalog private constructor(
         } ?: throw CatalogError.NeedsPassword()
         return StreamRequest(id, camera.url.withCredentials(camera.username, password), camera.url.toString())
     }
+
+    private fun find(id: CameraId): Camera? = list.firstOrNull { it.id == id }
 
     private fun indexOf(id: CameraId): Int =
         list.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: throw CatalogError.NotFound()

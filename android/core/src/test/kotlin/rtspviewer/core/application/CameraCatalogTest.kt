@@ -311,4 +311,14 @@ class CameraCatalogTest {
         assertFailsWith<CatalogError.Invalid> { c2.add(subDraft(SubstreamInput.Set("rtsp://10.0.0.5/stream2"))) }
         assertNull(fake2.saved)
     }
+
+    @Test
+    fun camerasDevolvidasSaoCopias() {
+        val (c, fake) = catalog()
+        val id = c.add(draft("Garagem", "rtsp://192.168.0.10:554/stream1"))
+        c.get(id)!!.rename(CameraName.parse("Outro"))
+        c.cameras.first().rename(CameraName.parse("Outro"))
+        assertEquals("Garagem", c.get(id)!!.name.value)
+        assertEquals("Garagem", fake.saved!!.single().name.value)
+    }
 }
