@@ -135,8 +135,9 @@ object UiColorCheck {
 
     fun violations(fileName: String, source: String): List<String> {
         val out = mutableListOf<String>()
-        source.lines().forEachIndexed { i, line ->
-            val code = line.substringBefore("//")
+        val original = source.lines()
+        KotlinSource.codeLines(source).forEachIndexed { i, code ->
+            val line = original[i]
             val named = NAMED.findAll(code).map { it.groupValues[1] }.filter { it !in ALLOWED }.toList()
             if (LITERAL_CALL.containsMatchIn(code) || named.isNotEmpty()) {
                 out += "$fileName:${i + 1}: ${line.trim()}"

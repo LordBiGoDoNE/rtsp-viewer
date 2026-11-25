@@ -12,25 +12,34 @@ package rtspviewer.buildlogic
  * Devolve as linhas que violam a regra, no formato `arquivo:linha: trecho`.
  */
 object CleartextHttpCheck {
+    // Só clientes HTTP. RTSP do Media3 (`RtspMediaSource`, `androidx.media3.*`
+    // em geral) continua permitido; as fontes HTTP do Media3 são recusadas.
     private val FORBIDDEN = listOf(
-        Regex("""\bHttpURLConnection\b"""),
+        Regex("""\b\w*URLConnection\b"""),
         Regex("""\bopenConnection\s*\("""),
         Regex("""\bopenStream\s*\("""),
+        Regex("""\bjava\.net\.URL\b"""),
+        Regex("""\btoURL\s*\("""),
         Regex("""\bokhttp3\b"""),
         Regex("""\bio\.ktor\b"""),
         Regex("""\bjava\.net\.http\b"""),
+        Regex("""\bretrofit2\b"""),
+        Regex("""\bcoil3?\.\w"""),
+        Regex("""\bcom\.bumptech\.glide\b"""),
+        Regex("""\bcom\.android\.volley\b"""),
+        Regex("""\b(Default|OkHttp|Cronet)?HttpDataSource\b"""),
+        Regex("""\b(OkHttp|Cronet)DataSource\b"""),
+        Regex("""\bandroidx\.media3\.datasource\.(okhttp|cronet)\b"""),
         Regex("""\bWebView\b"""),
         Regex("""\bDownloadManager\b"""),
     )
 
     fun violations(fileName: String, source: String): List<String> {
         val out = mutableListOf<String>()
-        source.lines().forEachIndexed { i, line ->
-            val trimmed = line.trim()
-            if (trimmed.startsWith("*") || trimmed.startsWith("/*")) return@forEachIndexed
-            val code = line.substringBefore("//")
+        val original = source.lines()
+        KotlinSource.codeLines(source).forEachIndexed { i, code ->
             if (FORBIDDEN.any { it.containsMatchIn(code) }) {
-                out += "$fileName:${i + 1}: $trimmed"
+                out += "$fileName:${i + 1}: ${original[i].trim()}"
             }
         }
         return out
