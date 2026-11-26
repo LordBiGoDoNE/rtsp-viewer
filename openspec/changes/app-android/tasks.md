@@ -56,16 +56,17 @@ usuário com depuração USB.
 
 ## 3. ONVIF em Kotlin (`task/app-android/onvif`, base: grupo 2)
 
-- [ ] 3.1 `onvif`: SOAP 1.2, parser StAX sem DTD e com limites, PasswordDigest
-  com relógio da câmera e HTTP Digest.
-- [ ] 3.2 `onvif`: cliente (informações, capacidades, perfis, URL do stream,
+- [x] 3.1 `onvif`: SOAP 1.2, parser XML sem DTD e com limites (SAX; o StAX
+  não existe no Android, ajuste do grupo 3 no D4), PasswordDigest com relógio
+  da câmera e HTTP Digest.
+- [x] 3.2 `onvif`: cliente (informações, capacidades, perfis, URL do stream,
   principal e secundário, host sempre o da câmera, sondagem de portas, prazo
   total de 10 s).
-- [ ] 3.3 `onvif`: WS-Discovery (multicast e unicast na sub-rede, validação,
+- [x] 3.3 `onvif`: WS-Discovery (multicast e unicast na sub-rede, validação,
   limites, deduplicação), com as interfaces injetadas.
-- [ ] 3.4 Simulador ONVIF em Kotlin nos testes e testes no JVM equivalentes
+- [x] 3.4 Simulador ONVIF em Kotlin nos testes e testes no JVM equivalentes
   aos do desktop (inclusive senha nunca em texto puro).
-- [ ] 3.5 `app/infrastructure`: adaptadores das portas `CameraDiscovery` e
+- [x] 3.5 `app/infrastructure`: adaptadores das portas `CameraDiscovery` e
   `StreamResolver`, interfaces pelo `ConnectivityManager` (só Wi-Fi e
   Ethernet) e `MulticastLock` durante a busca. Fecha o requisito "Permissões
   mínimas" (HTTP sem TLS só para a rede local): guarda que só deixa o ONVIF
