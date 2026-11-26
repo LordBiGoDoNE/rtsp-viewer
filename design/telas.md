@@ -1,7 +1,7 @@
 # Telas do rtsp-viewer
 
 Descrição independente de plataforma, válida para o desktop (Slint) e o Android
-(Compose). Cores, fontes, espaçamentos e tamanhos (inclusive da janela e dos
+(Compose); as diferenças do Android estão na seção 6. Cores, fontes, espaçamentos e tamanhos (inclusive da janela e dos
 painéis) vêm de `design/tokens.json` (ADR 0004); a UI não usa medidas literais.
 Toda mudança de tela altera este documento e as duas UIs.
 
@@ -171,3 +171,46 @@ formulário "Nova câmera" com o nome sugerido (se houver) e o IP no endereço; 
 app guarda internamente o endereço do serviço ONVIF anunciado pela câmera (não
 exibido) e o usa na consulta ao salvar, se o endereço não for alterado. O
 usuário informa usuário e senha e salva (seção 2.1).
+
+## 6. Adaptações do Android
+
+As telas 1 a 5 valem para o Android (Compose), com estas diferenças (design D5
+da spec `app-android`). Tudo o que não aparece aqui segue as seções acima.
+
+- **Sem teclado nem cursor:** não há atalhos de teclado (F11, Enter, Esc) nem
+  estado sob o cursor (`surface-hover`). O botão "Voltar" das telas e o gesto
+  (ou botão) de voltar do sistema fazem o papel do Esc: fecham o diálogo
+  aberto, cancelam a consulta ou a escolha de fabricante, saem da tela cheia e,
+  por fim, voltam à lista. Na lista, voltar fecha o app como em qualquer app
+  Android.
+- **Barra da lista:** o título "Câmeras" e o botão primário "Adicionar câmera";
+  "Procurar câmeras" e "Sobre" ficam no menu "⋮" (descrição de acessibilidade
+  "Mais opções") à direita, porque os quatro não cabem na largura de um
+  celular. O estado vazio continua com "Adicionar câmera" e "Procurar câmeras".
+- **Linha da lista:** um toque abre a câmera. "Editar" e "Remover" ficam num
+  menu da própria linha, aberto pelo botão "⋮" à direita (descrição de
+  acessibilidade "Ações de <nome>").
+- **Larguras:** formulário, diálogos, avisos e painéis usam os tamanhos dos
+  tokens como largura máxima e ocupam a largura da tela quando ela é menor.
+- **Formulário:** a senha é um campo de senha do teclado do Android; a ação
+  "Concluir" do teclado no último campo equivale ao Enter (salva).
+- **Visualização:** "Tela cheia" ou duplo toque no vídeo alternam a tela cheia
+  imersiva: barras do sistema escondidas (um deslize da borda as mostra por
+  instantes) e a barra superior do app escondida. Em tela cheia a rotação segue
+  o sensor do aparelho (retrato ou paisagem); ao sair, volta ao comportamento
+  normal do aparelho. A tela fica ligada enquanto o vídeo está em reprodução.
+  Ao levar o app para segundo plano, a conexão é encerrada; ao voltar, a
+  câmera conecta de novo sem ação do usuário. O diálogo "Senha de <usuário>"
+  tem o campo oculto "Senha".
+- **Procurar câmeras:** a busca usa só as redes Wi-Fi e Ethernet do aparelho.
+  Sem nenhuma delas (só dados móveis), nada é enviado e a tela mostra "Nenhuma
+  câmera encontrada.". As dicas, uma por linha, são:
+  - "Confira se:"
+  - "• o ONVIF está ativo na câmera (na Tapo, crie a \"Conta da câmera\" no app
+    Tapo);"
+  - "• o celular está conectado ao Wi-Fi da mesma rede da câmera."
+- **Sobre:** "rtsp-viewer <versão>", "Client leve para câmeras RTSP." e, no
+  lugar do componente do Slint (que o Android não usa), o título "Licenças de
+  terceiros" com uma linha por componente: "Media3 (AndroidX) — Apache-2.0",
+  "Jetpack Compose — Apache-2.0", "AndroidX — Apache-2.0" e "Kotlin e kotlinx
+  — Apache-2.0". Botão "Voltar".

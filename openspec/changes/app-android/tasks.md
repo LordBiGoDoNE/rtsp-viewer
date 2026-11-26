@@ -90,14 +90,14 @@ usuário com depuração USB.
 
 ## 5. Interface Compose (`task/app-android/interface`, base: grupo 4)
 
-- [ ] 5.1 `design/telas.md`: seção de adaptações do Android (D5).
-- [ ] 5.2 Lista (vazia, avisos, menu da linha, remoção com confirmação),
+- [x] 5.1 `design/telas.md`: seção de adaptações do Android (D5).
+- [x] 5.2 Lista (vazia, avisos, menu da linha, remoção com confirmação),
   formulário (validação, consulta ONVIF com cancelar, fabricantes) e sobre
   (licenças).
-- [ ] 5.3 Visualização (estados, informações, senha pedida, tela cheia
+- [x] 5.3 Visualização (estados, informações, senha pedida, tela cheia
   imersiva por botão e duplo toque, gesto de voltar, tela ligada).
-- [ ] 5.4 Procurar câmeras (estados, "Já cadastrada", dicas do Android).
-- [ ] 5.5 `ViewModel` com sessões (resultado antigo ignorado), testes JVM com
+- [x] 5.4 Procurar câmeras (estados, "Já cadastrada", dicas do Android).
+- [x] 5.5 `ViewModel` com sessões (resultado antigo ignorado), testes JVM com
   portas falsas e testes de UI do Compose.
 
 ## 6. Fechamento (`task/app-android/fechamento`, base: grupo 5)

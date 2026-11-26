@@ -15,7 +15,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import rtspviewer.core.application.DiscoveryFailure
 import rtspviewer.core.application.ResolveError
 import rtspviewer.core.application.StreamTarget
 import rtspviewer.core.domain.DeviceAddress
@@ -195,11 +194,12 @@ class OnvifAdaptersTest {
     }
 
     @Test
-    fun semRedeEFalhaClara() {
+    fun semWifiNemEthernetTerminaVaziaSemEnviar() {
+        // Só dados móveis: nenhuma interface, nada enviado, nenhuma trava; a
+        // tela mostra "Nenhuma câmera encontrada." com a dica do Wi-Fi.
         val guard = FakeGuard()
-        val e = assertFailsWith<DiscoveryFailure> { OnvifCameraDiscovery({ emptyList() }, guard).discover() }
-        assertEquals("Nenhuma interface de rede disponível para a busca.", e.message)
-        assertEquals(guard.acquired, guard.released)
+        assertTrue(OnvifCameraDiscovery({ emptyList() }, guard).discover().isEmpty())
+        assertEquals(0 to 0, guard.acquired to guard.released)
     }
 
     @Test
