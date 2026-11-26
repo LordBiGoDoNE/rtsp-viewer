@@ -115,8 +115,11 @@ services:
       - ultrafast
       - -tune
       - zerolatency
+      # GOP fechado: quadros-chave IDR, como nas câmeras IP. Com o padrão do
+      # x265 (open-gop) só há CRA, que o RTSP do Media3 1.11 não reconhece como
+      # quadro-chave (design D3 de app-android).
       - -x265-params
-      - keyint=25:log-level=error
+      - keyint=25:open-gop=0:log-level=error
       - -pix_fmt
       - yuv420p
       - -f

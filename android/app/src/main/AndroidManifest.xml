@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Permissões mínimas (ADR 0006): nenhuma de tempo de execução. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+
+    <!-- Trazidas por bibliotecas e não usadas (a task checkReleasePermissions
+         recusa qualquer outra):
+         - WAKE_LOCK (media3-exoplayer): só é usada com ExoPlayer.setWakeMode,
+           que o app não chama (o modo padrão é WAKE_MODE_NONE).
+         - DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION (androidx.core): só é usada por
+           ContextCompat.registerReceiver(..., RECEIVER_NOT_EXPORTED) na API < 33.
+           O único chamador de ContextCompat.registerReceiver é o Compose
+           (AndroidComposeView, DOCK_EVENT), com RECEIVER_EXPORTED; o Media3
+           registra receivers pelo próprio Util, sem essa permissão. -->
+    <uses-permission
+        android:name="android.permission.WAKE_LOCK"
+        tools:node="remove" />
+    <permission
+        android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+    <uses-permission
+        android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.RtspViewer"
+        tools:targetApi="36">
+
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

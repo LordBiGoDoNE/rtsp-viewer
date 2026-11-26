@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tema da janela só para o instante antes do Compose desenhar: fundo escuro,
+     sem barra de ação. As cores da UI vêm de Tokens (gerado de design/tokens.json). -->
+<resources>
+    <style name="Theme.RtspViewer" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>
