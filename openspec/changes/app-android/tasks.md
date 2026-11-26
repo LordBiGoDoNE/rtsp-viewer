@@ -42,15 +42,15 @@ usuário com depuração USB.
 
 ## 2. Núcleo e persistência (`task/app-android/nucleo`, base: grupo 1)
 
-- [ ] 2.1 `core`: `Camera`, `CameraName`, `RtspUrl`, endereço da câmera,
+- [x] 2.1 `core`: `Camera`, `CameraName`, `RtspUrl`, endereço da câmera,
   fabricantes, stream secundário e redação de credenciais, com os mesmos
   casos de teste do `core` em Rust.
-- [ ] 2.2 `core`: portas e casos de uso (catálogo e cadastro por endereço com
+- [x] 2.2 `core`: portas e casos de uso (catálogo e cadastro por endereço com
   fallback de fabricante), testados com portas falsas; teste de arquitetura do
   `core`.
-- [ ] 2.3 `app/infrastructure`: `cameras.json` (formato versão 1, `AtomicFile`,
+- [x] 2.3 `app/infrastructure`: `cameras.json` (formato versão 1, escrita atômica,
   arquivo corrompido preservado), com testes JVM e instrumentados.
-- [ ] 2.4 `app/infrastructure`: cofre com chave AES do Keystore (AES-GCM, IV
+- [x] 2.4 `app/infrastructure`: cofre com chave AES do Keystore (AES-GCM, IV
   por gravação, senha que não decifra tratada como ausente), com testes
   instrumentados; nenhuma senha em log.
 
