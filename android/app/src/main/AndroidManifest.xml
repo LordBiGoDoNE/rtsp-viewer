@@ -8,6 +8,25 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
+    <!-- Trazidas por bibliotecas e não usadas (a task checkReleasePermissions
+         recusa qualquer outra):
+         - WAKE_LOCK (media3-exoplayer): só é usada com ExoPlayer.setWakeMode,
+           que o app não chama (o modo padrão é WAKE_MODE_NONE).
+         - DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION (androidx.core): só é usada por
+           ContextCompat.registerReceiver(..., RECEIVER_NOT_EXPORTED) na API < 33.
+           O único chamador de ContextCompat.registerReceiver é o Compose
+           (AndroidComposeView, DOCK_EVENT), com RECEIVER_EXPORTED; o Media3
+           registra receivers pelo próprio Util, sem essa permissão. -->
+    <uses-permission
+        android:name="android.permission.WAKE_LOCK"
+        tools:node="remove" />
+    <permission
+        android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+    <uses-permission
+        android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+
     <application
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"

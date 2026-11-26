@@ -47,7 +47,12 @@ escopo do desktop: cadastro, visualização e ONVIF.
   o `targetSdk`). Build de release com R8. O lint trata avisos como erro, com
   as exceções deliberadas em `android/app/lint.xml`.
 - Permissões: `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` e
-  `CHANGE_WIFI_MULTICAST_STATE`. Nenhuma de tempo de execução.
+  `CHANGE_WIFI_MULTICAST_STATE`. Nenhuma de tempo de execução. As que as
+  bibliotecas acrescentam no merge sem uso pelo app (`WAKE_LOCK` do Media3,
+  `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` do AndroidX Core) são retiradas
+  com `tools:node="remove"`, e a task `checkReleasePermissions` recusa o
+  manifesto mesclado do release com qualquer outra permissão, permissão
+  própria declarada ou backup ligado.
 - HTTP sem TLS: a configuração de segurança de rede do Android não aceita
   faixas de IP. O tráfego em texto puro fica permitido no manifesto, e o
   adaptador ONVIF do app só envia para endereços privados, link-local ou

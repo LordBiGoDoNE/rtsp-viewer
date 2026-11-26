@@ -1,3 +1,5 @@
+import com.android.build.api.artifact.SingleArtifact
+import rtspviewer.buildlogic.CheckManifestPermissions
 import rtspviewer.buildlogic.GenerateDesignTokens
 
 plugins {
@@ -88,6 +90,14 @@ androidComponents {
     onVariants { variant ->
         val tokens = tasks.named<GenerateDesignTokens>("generateDesignTokens")
         variant.sources.kotlin?.addGeneratedSourceDirectory(tokens, GenerateDesignTokens::outputDir)
+    }
+    // Permissões mínimas (spec android-distribution): confere o manifesto mesclado
+    // do release, onde entram as permissões trazidas pelas bibliotecas.
+    onVariants(selector().withName("release")) { variant ->
+        tasks.register<CheckManifestPermissions>("checkReleasePermissions") {
+            manifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
+            report.set(layout.buildDirectory.file("reports/checkReleasePermissions.txt"))
+        }
     }
 }
 

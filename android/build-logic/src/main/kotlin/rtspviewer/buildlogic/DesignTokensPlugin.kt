@@ -99,6 +99,32 @@ abstract class CheckCleartextHttp : DefaultTask() {
     }
 }
 
+/**
+ * Falha se o manifesto mesclado tiver permissão fora das quatro permitidas,
+ * declarar permissão própria ou não desligar o backup (ver [ManifestPermissionsCheck]).
+ * O módulo `app` liga [manifest] ao manifesto mesclado do release.
+ */
+abstract class CheckManifestPermissions : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val manifest: RegularFileProperty
+
+    @get:OutputFile
+    abstract val report: RegularFileProperty
+
+    @TaskAction
+    fun check() {
+        val found = ManifestPermissionsCheck.violations(manifest.get().asFile.readText())
+        report.get().asFile.apply { parentFile.mkdirs(); writeText(found.joinToString("\n")) }
+        if (found.isNotEmpty()) {
+            throw GradleException(
+                "Manifesto do release fora do requisito de permissões mínimas (ADR 0006):\n" +
+                    found.joinToString("\n"),
+            )
+        }
+    }
+}
+
 /** Registra as tasks; o módulo `app` liga a saída às fontes de cada variante. */
 class DesignTokensPlugin : Plugin<Project> {
     override fun apply(project: Project) {
