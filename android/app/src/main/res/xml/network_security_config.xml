@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ONVIF usa HTTP sem TLS na rede local (ADR 0005). A configuração do Android
+     não aceita faixas de IP, então o HTTP é permitido aqui e o adaptador ONVIF
+     só envia para endereços da rede local (privados, link-local ou loopback),
+     conferidos depois da resolução do nome (ADR 0006, tarefa 3.5). O app não usa
+     HTTP para mais nada: a task checkCleartextHttp recusa cliente HTTP em app e
+     core. -->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

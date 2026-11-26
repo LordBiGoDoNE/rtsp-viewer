@@ -16,7 +16,8 @@ do Gradle e registra no ADR 0006 qualquer diferença desta tabela:
 | Android Gradle Plugin | 9.x estável mais recente (Kotlin embutido no AGP 9) |
 | Gradle | wrapper na versão exigida pelo AGP escolhido |
 | Compose | BOM estável mais recente, Material 3 |
-| `compileSdk` / `targetSdk` | 36 (Android 16) |
+| `targetSdk` | 36 (Android 16) |
+| `compileSdk` | 37.2 (exigido por Compose 1.13 e Lifecycle 2.11; ajuste do grupo 1) |
 | `minSdk` | 26 (Android 8.0) |
 | JDK | 21 (já instalado) |
 
@@ -198,9 +199,11 @@ Mesmo protocolo e mesmas regras do desktop (`descoberta-onvif` D1–D4 e ADR
 - Manifesto: `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` e
   `CHANGE_WIFI_MULTICAST_STATE`. Nenhuma permissão perigosa (de tempo de
   execução).
-- Tráfego sem TLS permitido só para endereços da rede local
-  (`network_security_config`), para o ONVIF em HTTP. RTSP não passa por essa
-  configuração.
+- Tráfego sem TLS só para endereços da rede local, para o ONVIF em HTTP. A
+  `network_security_config` do Android não aceita faixas de IP, então ela
+  permite o texto puro e o adaptador ONVIF do app só envia para endereços
+  privados, link-local ou loopback, conferidos depois da resolução do nome
+  (ajuste do grupo 1, ADR 0006). RTSP não passa por essa configuração.
 - Nada de rede no boot: o app só abre conexão ao abrir uma câmera, consultar
   ou procurar.
 

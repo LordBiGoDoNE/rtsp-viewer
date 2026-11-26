@@ -2,8 +2,8 @@
 
 Issue: [#21](https://github.com/LordBiGoDoNE/rtsp-viewer/issues/21).
 Épica: `epic/app-android`. Spec formalizada em 2026-11-25.
-Implementação: aguardando a confirmação de início. Merges dependem da
-aprovação do pacote final.
+Implementação autorizada em 2026-11-25 (grupos 1–6). Teste local pelo usuário:
+sim (no celular). Merges dependem da aprovação do pacote final.
 
 Os grupos formam uma cadeia (cada um parte da branch do anterior). Em cada
 grupo: testes do projeto, CI local via `act` (job `android`; o
@@ -19,22 +19,24 @@ usuário com depuração USB.
 
 ## 1. Fundação Android (`task/app-android/fundacao`, base: épica)
 
-- [ ] 1.1 Projeto Gradle em `android/` (wrapper, catálogo de versões fixas
+- [x] 1.1 Projeto Gradle em `android/` (wrapper, catálogo de versões fixas
   conferidas na documentação atual, módulos `core`, `onvif` e `app`, `minSdk`
   26, `targetSdk` 36, R8 no release); `.gitignore` para `local.properties`,
   `*.jks` e `*.keystore`.
-- [ ] 1.2 `build-logic`: geração do tema do Compose a partir de
+- [x] 1.2 `build-logic`: geração do tema do Compose a partir de
   `design/tokens.json` (falha com o nome do token inválido), com testes; e a
   verificação de cor literal na UI.
-- [ ] 1.3 Manifesto com as permissões mínimas, backup desligado e
-  `network_security_config` (HTTP só na rede local); app vazio que abre com o
-  tema gerado.
-- [ ] 1.4 Assinatura local: `scripts/android-keystore.ps1` (keystore fora do
+- [x] 1.3 Manifesto com as permissões mínimas, backup desligado e
+  `network_security_config` (texto puro liberado, porque o Android não aceita
+  faixas de IP; a restrição à rede local é fechada na 3.5) e a task
+  `checkCleartextHttp`, que recusa cliente HTTP em `app` e `core` (só o
+  `onvif` usa HTTP); app vazio que abre com o tema gerado.
+- [x] 1.4 Assinatura local: `scripts/android-keystore.ps1` (keystore fora do
   repositório) e release assinado por variáveis de ambiente.
-- [ ] 1.5 CI: jobs `android` (lint, testes JVM, cor literal, release sem
+- [x] 1.5 CI: jobs `android` (lint, testes JVM, cor literal, release sem
   assinatura como artefato) e `android-device` (emulador com a câmera falsa
   em `10.0.2.2`).
-- [ ] 1.6 ADR 0006 (Android: módulos, bibliotecas e versões, permissões,
+- [x] 1.6 ADR 0006 (Android: módulos, bibliotecas e versões, permissões,
   cofre, assinatura, `targetSdk` 36 e a rede local do Android 17); README
   (desenvolver no Android).
 
@@ -65,7 +67,12 @@ usuário com depuração USB.
   aos do desktop (inclusive senha nunca em texto puro).
 - [ ] 3.5 `app/infrastructure`: adaptadores das portas `CameraDiscovery` e
   `StreamResolver`, interfaces pelo `ConnectivityManager` (só Wi-Fi e
-  Ethernet) e `MulticastLock` durante a busca.
+  Ethernet) e `MulticastLock` durante a busca. Fecha o requisito "Permissões
+  mínimas" (HTTP sem TLS só para a rede local): guarda que só deixa o ONVIF
+  enviar para endereços privados, link-local ou loopback, conferidos depois da
+  resolução do nome, e sem seguir redirecionamento HTTP; testes que recusam IP
+  público, nome que resolve para IP público e redirecionamento para host
+  público, sem nenhum envio.
 
 ## 4. Player Media3 (`task/app-android/player`, base: grupo 3)
 
