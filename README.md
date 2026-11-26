@@ -4,7 +4,7 @@ Client leve para câmeras RTSP no Windows, Linux e Android: simples, rápido par
 
 ## Estado
 
-Desktop (Windows e Linux): primeira versão entregue em 2026-11-24 (spec `mvp-desktop-rtsp`). Ela cobre a lista de câmeras e a visualização de uma câmera com tela cheia. Os pacotes saem só como artefatos do CI; nada foi publicado. Em 2026-11-25 entrou a descoberta ONVIF (spec `descoberta-onvif`): busca de câmeras na rede e cadastro só com IP, usuário e senha. Antes de distribuir, falta resolver a issue #7 (avisos de licença). O app Android está em desenvolvimento na spec `app-android` e ainda não foi entregue.
+Desktop (Windows e Linux): primeira versão entregue em 2026-11-24 (spec `mvp-desktop-rtsp`). Ela cobre a lista de câmeras e a visualização de uma câmera com tela cheia. Os pacotes saem só como artefatos do CI; nada foi publicado. Em 2026-11-25 entrou a descoberta ONVIF (spec `descoberta-onvif`): busca de câmeras na rede e cadastro só com IP, usuário e senha. Antes de distribuir, falta resolver a issue #7 (avisos de licença). Android: entregue em 2026-11-26 (spec `app-android`), com o mesmo escopo do desktop (lista de câmeras, visualização com tela cheia e descoberta ONVIF). O APK de release é assinado com a chave local do usuário; o CI gera só o APK sem assinatura, e nada foi publicado.
 
 ## Stack
 
@@ -19,7 +19,7 @@ As duas interfaces compartilham a mesma identidade visual, definida em `design/`
 
 1. Lista de câmeras e visualização em tela cheia (desktop). **Entregue.**
 2. Descoberta de câmeras na rede e cadastro só com IP, usuário e senha (ONVIF, desktop). **Entregue.**
-3. App Android com o mesmo escopo.
+3. App Android com o mesmo escopo. **Entregue.**
 4. Grade com várias câmeras.
 5. Snapshot e gravação.
 
@@ -60,7 +60,7 @@ O pacote Windows passa da meta porque o build LGPL do FFmpeg traz todos os codec
 
 ## Medições (Android, 2026-11-25)
 
-Feitas na spec `app-android`, ainda não entregue. Aparelho: celular do usuário (Galaxy A56, Android 17), no Wi-Fi da LAN local; câmera falsa (`test-camera/`) e simulador ONVIF no PC, ligado por cabo. Build `e2e`: igual ao release (R8), com outro id e assinado com a chave de debug do SDK.
+Feitas na spec `app-android`. Aparelho: celular do usuário (Galaxy A56, Android 17), no Wi-Fi da LAN local; câmera falsa (`test-camera/`) e simulador ONVIF no PC, ligado por cabo. Build `e2e`: igual ao release (R8), com outro id e assinado com a chave de debug do SDK.
 
 | Item | Resultado | Meta |
 | --- | --- | --- |
@@ -100,7 +100,7 @@ Variáveis úteis: `RTSP_VIEWER_CONFIG_DIR` (lista de câmeras isolada), `RTSP_V
 
 ## Desenvolver (Android)
 
-Em andamento na spec `app-android` (ADR 0006). Pré-requisitos no Windows: JDK 21 e o Android SDK de linha de comando (`platform-tools`, `platforms/android-36`, `build-tools/36.1.0`) em `%LOCALAPPDATA%\Android\Sdk`. O wrapper baixa o Gradle 9.6.0.
+Decisões no ADR 0006. Pré-requisitos no Windows: JDK 21 e o Android SDK de linha de comando (`platform-tools`, `platforms/android-37.2`, exigida pelo `compileSdk`, e `build-tools/36.1.0`) em `%LOCALAPPDATA%\Android\Sdk`. O wrapper baixa o Gradle 9.6.0.
 
 ```powershell
 . ./scripts/env-android.ps1       # JAVA_HOME (JDK 21), ANDROID_HOME e adb no PATH

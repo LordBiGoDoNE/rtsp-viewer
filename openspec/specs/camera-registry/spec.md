@@ -8,9 +8,9 @@ Cadastro das câmeras do usuário: nome, URL RTSP validada e credenciais. A list
 
 ### Requirement: Cadastro de câmeras
 
-O app desktop SHALL permitir adicionar, editar e remover câmeras. Cada câmera
-tem nome (1 a 60 caracteres, não composto só de espaços), URL RTSP, usuário
-opcional e senha opcional.
+O app, no desktop e no Android, SHALL permitir adicionar, editar e remover
+câmeras. Cada câmera tem nome (1 a 60 caracteres, não composto só de espaços),
+URL RTSP, usuário opcional e senha opcional.
 
 #### Scenario: Adicionar câmera válida
 
@@ -34,6 +34,11 @@ opcional e senha opcional.
 - **WHEN** o usuário tenta salvar com nome vazio, só com espaços ou com mais de 60 caracteres
 - **THEN** o app não salva e mostra o motivo junto ao campo
 
+#### Scenario: Mesmas regras no Android
+
+- **WHEN** o Android recebe as mesmas entradas dos testes de nome, URL e endereço do desktop
+- **THEN** aceita e recusa os mesmos casos, com as mesmas mensagens
+
 ### Requirement: Validação da URL RTSP
 
 O núcleo SHALL aceitar somente URLs com esquema `rtsp` ou `rtsps` e host não
@@ -55,10 +60,12 @@ URL salva fica sem credenciais.
 
 ### Requirement: Senhas protegidas
 
-Senhas de câmeras SHALL ficar somente no cofre do sistema (Windows Credential
-Manager, Secret Service no Linux). Elas SHALL NOT aparecer no arquivo de
-configuração, em logs nem em mensagens de erro. Sem cofre disponível, o app
-SHALL manter a senha só em memória durante a sessão e avisar o usuário.
+Senhas de câmeras SHALL ficar somente no cofre do sistema: Windows Credential
+Manager, Secret Service no Linux e, no Android, cifradas com AES-GCM por uma
+chave não exportável do Android Keystore, no armazenamento privado do app.
+Elas SHALL NOT aparecer no arquivo de configuração, em logs nem em mensagens
+de erro. Sem cofre disponível (Linux), o app SHALL manter a senha só em
+memória durante a sessão e avisar o usuário.
 
 #### Scenario: Arquivo de configuração sem segredos
 
@@ -76,11 +83,22 @@ SHALL manter a senha só em memória durante a sessão e avisar o usuário.
 - **THEN** o app avisa que a senha não será lembrada
 - **AND** pede a senha ao abrir a câmera, guardando-a só até o app fechar
 
+#### Scenario: Android guarda só a senha cifrada
+
+- **WHEN** uma câmera com senha é salva no Android
+- **THEN** os arquivos do app contêm só o texto cifrado e o IV, nunca a senha
+
+#### Scenario: Senha que não decifra no Android
+
+- **WHEN** a senha salva não pode ser decifrada (chave do Keystore invalidada)
+- **THEN** o app pede a senha ao abrir a câmera, sem erro nem perda da câmera
+
 ### Requirement: Persistência confiável da lista
 
-A lista de câmeras SHALL ser salva em `cameras.json` no diretório de
-configuração do usuário, com campo de versão e escrita atômica. Um arquivo
-corrompido SHALL NOT impedir o app de abrir nem ser apagado.
+A lista de câmeras SHALL ser salva em `cameras.json`, no diretório de
+configuração do usuário (desktop) ou no armazenamento privado do app
+(Android), com campo de versão e escrita atômica. Um arquivo corrompido SHALL
+NOT impedir o app de abrir nem ser apagado.
 
 #### Scenario: Arquivo corrompido
 
