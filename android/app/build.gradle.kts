@@ -67,6 +67,12 @@ android {
         buildConfig = false
     }
 
+    testOptions {
+        // Classes do Media3 usam APIs do Android (relógio, Bundle) só em campos
+        // auxiliares; nos testes JVM elas devolvem valores padrão.
+        unitTests.isReturnDefaultValues = true
+    }
+
     lint {
         warningsAsErrors = true
         abortOnError = true
@@ -97,6 +103,8 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.core.ktx)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.exoplayer.rtsp)
     implementation(libs.coroutines.android)
     implementation(libs.serialization.json)
 

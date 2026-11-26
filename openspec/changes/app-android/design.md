@@ -111,8 +111,32 @@ bibliotecas de serialização, como o `core` do desktop.
   reconectando (1, 2, 4, 8, 16 e 30 s, reinício após 10 s estáveis) e erro.
   401 vira "Usuário ou senha inválidos." sem reconexão; codec sem decoder vira
   "Formato de vídeo não suportado: <codec>".
+  Limitação do Media3 1.11: o RTSP dele descarta do SDP as trilhas sem
+  depacketizador (MJPEG, por exemplo), e o codec não chega ao app. Sem
+  nenhuma trilha reproduzível, a mensagem é "Formato de vídeo não suportado:
+  desconhecido", sem reconexão; se sobrar só áudio, é "A câmera não envia
+  vídeo.".
+- H.265 no RTSP do Media3 1.11, verificado no Galaxy A56
+  (`c2.exynos.hevc.decoder`):
+  - O `RtspMediaTrack` entrega VPS, SPS e PPS do SDP em três entradas de
+    `initializationData` (`csd-0`, `csd-1`, `csd-2`); o Android espera os
+    três em `csd-0`, e o decoder da Exynos falha ao iniciar
+    (`CodecException 0x80000000`, `work failed to complete: 14`) antes de
+    receber qualquer quadro. O app une os três num só `csd-0` no renderer de
+    vídeo (`HevcDecoderConfig.kt`).
+  - O `RtpH265Reader` só marca IDR (tipos 19 e 20) como quadro-chave, e a
+    fila de amostras descarta tudo até o primeiro quadro-chave. Um stream só
+    com CRA (tipo 21, padrão `open-gop` do x265) nunca chega ao decoder:
+    0 buffers enfileirados com dados chegando. Não há como trocar o leitor
+    RTP pela API pública. Com o decoder pronto e nenhum quadro em 15 s, a
+    reprodução para com "Formato de vídeo não suportado: <codec>", sem
+    reconexão, em vez de ficar em "Conectando". A câmera falsa publica H.265
+    com GOP fechado (IDR), como as câmeras IP.
 - Sair da visualização ou levar o app para segundo plano libera o player em
-  até 1 s. Ao voltar, a câmera reconecta.
+  até 1 s. Ao voltar, a câmera reconecta. O `release()` tem prazo de 300 ms e
+  a conexão RTSP usa sockets próprios (`setSocketFactory`) com prazo de
+  conexão de 5 s, abortados ao fechar: o `connect` do Media3 não tem prazo e
+  prenderia a thread de reprodução com a câmera sem responder.
 - Plano B, se o Media3 não cumprir a latência ou não abrir as câmeras reais:
   parar e decidir com o usuário (libVLC ou outra opção), sem trocar a
   biblioteca por conta própria.
