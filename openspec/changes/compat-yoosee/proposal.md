@@ -1,6 +1,6 @@
 # Proposal
 
-Issue: (a criar).
+Issue: [#31](https://github.com/LordBiGoDoNE/rtsp-viewer/issues/31).
 Épica: `epic/compat-yoosee`, criada da `main` `3c1a290` em 2026-11-27.
 
 ## Why

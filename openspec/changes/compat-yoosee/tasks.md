@@ -1,6 +1,6 @@
 # Tasks
 
-Issue: (a criar).
+Issue: [#31](https://github.com/LordBiGoDoNE/rtsp-viewer/issues/31).
 Épica: `epic/compat-yoosee`. Spec formalizada em 2026-11-27.
 Implementação: aguardando a confirmação do usuário. Teste local pelo usuário: a
 perguntar.
