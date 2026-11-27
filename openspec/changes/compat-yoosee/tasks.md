@@ -2,8 +2,8 @@
 
 Issue: [#31](https://github.com/LordBiGoDoNE/rtsp-viewer/issues/31).
 Épica: `epic/compat-yoosee`. Spec formalizada em 2026-11-27.
-Implementação: aguardando a confirmação do usuário. Teste local pelo usuário: a
-perguntar.
+Implementação autorizada em 2026-11-27 (grupos 1–4). Teste local pelo usuário:
+sim. Merges dependem da aprovação do pacote final.
 
 ## Como os grupos andam
 
